@@ -1,0 +1,3 @@
+[submodule "scripts/AFUtils"]
+	path = scripts/AFUtils
+	url = https://github.com/igromanru/AFUtils-UE4SS.git

@@ -43,6 +43,7 @@ end
 -- Called Every Hour
 local function Handle_IsCurrentlyDaytime(context, IsDaytime)
     -- Set to Night
+    print("NightShift Handle_IsCurrentlyDaytime")
     dn_manager = AFUtils.GetDayNightManager()
     is_day = IsDaytime:get()
     IsDaytime:set(false)
@@ -52,7 +53,9 @@ local function Handle_IsCurrentlyDaytime(context, IsDaytime)
     end
     hour_tick = hour_tick + 1
     if hour_tick % Config.hours_per_fog_event == 0 then
-        AFUtils.TriggerWeatherEvent("Fog")
+        ExecuteWithDelay(4000, function()
+            AFUtils.TriggerWeatherEvent("Fog")
+        end)
     end
 end
 
@@ -80,7 +83,7 @@ local function Handle_InitializeTraits(context, Phd, FirstTime, Amnesia)
             Utils.GiveItemToTarget(pawn, player_name, item_id, data_table, data_cat, 1)
 
             item_id = "fieldbattery"
-            Utils.GiveItemToTarget(pawn, player_name, item_id, data_table, data_cat, 3)
+            Utils.GiveItemToTarget(pawn, player_name, item_id, data_table, data_cat, 1)
 
             item_id = "lantern"
             Utils.GiveItemToTarget(pawn, player_name, item_id, data_table, data_cat, 1)
@@ -96,11 +99,13 @@ local function Handle_VentWeatherFXToAllPlayers()
     print("last_weather_event")
     if last_weather_event == "Fog" and Config.disable_fog_venting then
         ExecuteWithDelay(3000, function()
-            AFUtils.TriggerWeatherEvent("Fog")
-            local dayNightManager = FindFirstOf("DayNightManager_C")
-            dayNightManager:PlayNextAnnouncementLine()
-            dayNightManager:Broadcast_BeginPlayAnnouncement(0, FName("Fog"))    
-        end) 
+            ExecuteWithDelay(4000, function()
+                AFUtils.TriggerWeatherEvent("Fog")
+                local dayNightManager = FindFirstOf("DayNightManager_C")
+                dayNightManager:PlayNextAnnouncementLine()
+                dayNightManager:Broadcast_BeginPlayAnnouncement(0, FName("Fog"))
+            end)
+        end)
     end
 end
 

@@ -2,6 +2,12 @@
 -- https://docs.ue4ss.com/guides/using-custom-lua-bindings
 
 
+--[[
+    Author: SpDoggy
+    Date: 2026-08-19
+    Mod Name: utilities
+]]
+
 
 -- ============================================================
 -- CONFIG

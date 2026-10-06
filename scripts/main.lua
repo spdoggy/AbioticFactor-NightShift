@@ -8,8 +8,6 @@
 -- Enable mod from the start
 ModEnabled = false
 
-local last_weather_event = "Fog"
-local hour_tick = 0
 
 -------------- Hotkeys -------------
 -- Possible keys: https://github.com/UE4SS-RE/RE-UE4SS/blob/main/docs/lua-api/table-definitions/key.md
@@ -21,8 +19,6 @@ ToggleKeyModifiers = {ModifierKey.CONTROL}
 ------------------------------------
 
 ------------------------------
--- Don't change code below --
-------------------------------
 local AFUtils = require("AFUtils.AFUtils")
 local Utils = require("utils")
 local Config = require("../config")
@@ -30,31 +26,55 @@ local Config = require("../config")
 ModName = "NightShift"
 ModVersion = "1.0.0"
 DebugMode = false
+local last_weather_event =  Config.fog_type
+local clock_tick = 0
+
 
 LogInfo("Starting NightShift mod initialization")
 
 
+local function LastWeatherInConfig()
+    for _, f in pairs(Config.weather_event_selection) do
+        if f == last_weather_event then
+            return true
+        end
+    end
+    return false
+end
 
 local function Handle_OnRep_IsNight(context)
     dn_manager = AFUtils.GetDayNightManager()
     dn_manager.IsNight = true
 end
 
--- Called Every Hour
+-- Called Every Hour (Sometimes)
 local function Handle_IsCurrentlyDaytime(context, IsDaytime)
     -- Set to Night
-    print("NightShift Handle_IsCurrentlyDaytime")
     dn_manager = AFUtils.GetDayNightManager()
     is_day = IsDaytime:get()
     IsDaytime:set(false)
     if not dn_manager.IsNight then
-        dn_manager.IsNight = true
-        dn_manager:OnRep_IsNight()
+        ExecuteWithDelay(1000, function()
+            dn_manager.IsNight = true
+        end)
+        ExecuteWithDelay(1500, function()
+            dn_manager:OnRep_IsNight()
+        end)
     end
-    hour_tick = hour_tick + 1
-    if hour_tick % Config.hours_per_fog_event == 0 then
+end
+
+-- Called Frequently
+local function Handle_ProgressClock()
+    clock_tick = clock_tick + 1
+    if clock_tick % (20 * Config.hours_per_weather_event) == 0 then
+        print("Selecting New Weather...")
+        ExecuteWithDelay(1000, function()
+            AFUtils.TriggerWeatherEvent("None")
+        end)
         ExecuteWithDelay(4000, function()
-            AFUtils.TriggerWeatherEvent("Fog")
+            local selected = math.random(1, #Config.weather_event_selection)
+            print(Config.weather_event_selection[selected])
+            AFUtils.TriggerWeatherEvent(Config.weather_event_selection[selected])
         end)
     end
 end
@@ -96,20 +116,15 @@ local function Handle_InitializeTraits(context, Phd, FirstTime, Amnesia)
     end
 end
 
-
-
 -- Function /Game/Blueprints/Environment/Systems/DayNightManager.DayNightManager_C:VentWeatherFXToAllPlayers
-local function Handle_VentWeatherFXToAllPlayers()           
-    print("Weather Venting Hook Called")
-    print("last_weather_event")
-    if last_weather_event == "Fog" and Config.disable_fog_venting then
+local function Handle_VentWeatherFXToAllPlayers()    
+    if LastWeatherInConfig() and Config.disable_fog_venting then
         ExecuteWithDelay(3000, function()
-            ExecuteWithDelay(4000, function()
-                AFUtils.TriggerWeatherEvent("Fog")
-                local dayNightManager = FindFirstOf("DayNightManager_C")
-                dayNightManager:PlayNextAnnouncementLine()
-                dayNightManager:Broadcast_BeginPlayAnnouncement(0, FName("Fog"))
-            end)
+            local selected = math.random(1, #Config.weather_event_selection)
+            AFUtils.TriggerWeatherEvent(Config.weather_event_selection[selected])
+            local dayNightManager = FindFirstOf("DayNightManager_C")
+            dayNightManager:PlayNextAnnouncementLine()
+            dayNightManager:Broadcast_BeginPlayAnnouncement(0, FName(Config.fog_type))
         end)
     end
 end
@@ -119,7 +134,10 @@ local function Handle_ClearActiveWeatherRequests()
     local dayNightManager = FindFirstOf("DayNightManager_C")
     last_weather_event = dayNightManager.CurrentWeatherEvent:ToString()
     if last_weather_event == "RadLeak" and Config.disable_fog_venting then
-        AFUtils.TriggerWeatherEvent("Fog")
+        ExecuteWithDelay(2000, function()
+            local selected = math.random(1, #Config.weather_event_selection)
+            AFUtils.TriggerWeatherEvent(Config.weather_event_selection[selected])
+        end)
     end
 
 end
@@ -151,6 +169,17 @@ ExecuteInGameThread(function()
         end
     end)
 
+    ExecuteWithDelay(2500, function()
+        local okHook, errHook = pcall(RegisterHook,
+            "/Game/Blueprints/Environment/Systems/DayNightManager.DayNightManager_C:ProgressClock",
+            Handle_ProgressClock
+        )
+        if not okHook then
+            Utils.error(string.format("Hook registration failed: %s", tostring(errHook)))
+        else
+            Utils.log("Hook registration success: Handle_ProgressClock")
+        end
+    end)
 
     ExecuteWithDelay(2500, function()
     local okHook, errHook = pcall(RegisterHook,
@@ -215,6 +244,13 @@ if ToggleKey and ToggleKeyModifiers then
             LogInfo(stateMessage)
             -- AFUtils.ModDisplayTextChatMessage(stateMessage)
             AFUtils.ClientDisplayWarningMessage(stateMessage, warningColor)
+
+            
+            for _, f in pairs(Config.weather_event_selection) do
+                --local ok2, name = pcall(function() return f:get():ToString() end)
+                print(f)
+                --if ok2 and name and name ~= "" then out[name] = true end
+            end
 
         end)
     end

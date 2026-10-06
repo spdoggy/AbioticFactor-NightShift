@@ -45,6 +45,7 @@ end
 local function Handle_OnRep_IsNight(context)
     dn_manager = AFUtils.GetDayNightManager()
     dn_manager.IsNight = true
+    dn_manager = nil
 end
 
 -- Called Every Hour (Sometimes)
@@ -61,6 +62,7 @@ local function Handle_IsCurrentlyDaytime(context, IsDaytime)
             dn_manager:OnRep_IsNight()
         end)
     end
+    dn_manager = nil
 end
 
 -- Called Frequently
@@ -105,13 +107,17 @@ local function Handle_InitializeTraits(context, Phd, FirstTime, Amnesia)
             item_id = "fieldbattery"
             Utils.GiveItemToTarget(pawn, player_name, item_id, data_table, data_cat, 1)
 
-            item_id = "lantern"
-            Utils.GiveItemToTarget(pawn, player_name, item_id, data_table, data_cat, 1)
+            if Config.player_starts_with_lantern then
+                item_id = "lantern"
+                Utils.GiveItemToTarget(pawn, player_name, item_id, data_table, data_cat, 1)
+            end
 
-            data_table = "/Game/Blueprints/Items/ItemTable_Gear.ItemTable_Gear"
-            data_cat = "Gear"
-            item_id = "trinket_light_yellow"
-            Utils.GiveItemToTarget(pawn, player_name, item_id, data_table, data_cat, 1)
+            if Config.player_starts_with_lantern then
+                data_table = "/Game/Blueprints/Items/ItemTable_Gear.ItemTable_Gear"
+                data_cat = "Gear"
+                item_id = "trinket_light_yellow"
+                Utils.GiveItemToTarget(pawn, player_name, item_id, data_table, data_cat, 1)
+            end
         end
     end
 end
@@ -121,10 +127,13 @@ local function Handle_VentWeatherFXToAllPlayers()
     if LastWeatherInConfig() and Config.disable_fog_venting then
         ExecuteWithDelay(3000, function()
             local selected = math.random(1, #Config.weather_event_selection)
+            print(selected)
             AFUtils.TriggerWeatherEvent(Config.weather_event_selection[selected])
-            local dayNightManager = FindFirstOf("DayNightManager_C")
-            dayNightManager:PlayNextAnnouncementLine()
-            dayNightManager:Broadcast_BeginPlayAnnouncement(0, FName(Config.fog_type))
+            -- TODO: Don't think these are needed
+            -- local dayNightManager = FindFirstOf("DayNightManager_C")
+            -- dayNightManager:PlayNextAnnouncementLine()
+            -- dayNightManager:Broadcast_BeginPlayAnnouncement(0, FName(Config.fog_type))
+            dayNightManager = nil
         end)
     end
 end
@@ -139,9 +148,10 @@ local function Handle_ClearActiveWeatherRequests()
             AFUtils.TriggerWeatherEvent(Config.weather_event_selection[selected])
         end)
     end
-
+    dayNightManager = nil
 end
 
+-- Hook Setup
 ExecuteInGameThread(function()
     LogInfo("Initializing NightShift hooks")
 

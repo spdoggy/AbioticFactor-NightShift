@@ -1,13 +1,17 @@
 return {
     -- Enable debug log.
     Debug = true,
+
+    -- General Config
     disable_fog_venting = true,
     hours_per_weather_event = 25,
-    
+    player_starts_with_trinket = true,
+    player_starts_with_lantern = true,
 
-    -- Starting Event
+    -- Starting Event Config:
     fog_type = "Fog",
 
+    -- Event List Config:
     -- Select One or More Weather events
     -- "None",
     -- "Fog",

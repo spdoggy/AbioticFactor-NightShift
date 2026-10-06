@@ -45,7 +45,6 @@ end
 local function Handle_OnRep_IsNight(context)
     dn_manager = AFUtils.GetDayNightManager()
     dn_manager.IsNight = true
-    dn_manager = nil
 end
 
 -- Called Every Hour (Sometimes)
@@ -57,12 +56,9 @@ local function Handle_IsCurrentlyDaytime(context, IsDaytime)
     if not dn_manager.IsNight then
         ExecuteWithDelay(1000, function()
             dn_manager.IsNight = true
-            ExecuteWithDelay(1500, function()
-                dn_manager:OnRep_IsNight()
-                ExecuteWithDelay(1500, function()
-                    dn_manager = nil
-                end)
-            end)
+        end)
+        ExecuteWithDelay(1500, function()
+            dn_manager:OnRep_IsNight()
         end)
     end
 end
@@ -131,11 +127,6 @@ local function Handle_VentWeatherFXToAllPlayers()
             local selected = math.random(1, #Config.weather_event_selection)
             print(selected)
             AFUtils.TriggerWeatherEvent(Config.weather_event_selection[selected])
-            -- TODO: Don't think these are needed
-            -- local dayNightManager = FindFirstOf("DayNightManager_C")
-            -- dayNightManager:PlayNextAnnouncementLine()
-            -- dayNightManager:Broadcast_BeginPlayAnnouncement(0, FName(Config.fog_type))
-            dayNightManager = nil
         end)
     end
 end
@@ -148,7 +139,6 @@ local function Handle_ClearActiveWeatherRequests()
         ExecuteWithDelay(2000, function()
             local selected = math.random(1, #Config.weather_event_selection)
             AFUtils.TriggerWeatherEvent(Config.weather_event_selection[selected])
-            dayNightManager = nil
         end)
     end
 end

@@ -60,9 +60,9 @@ local function Handle_IsCurrentlyDaytime(context, IsDaytime)
         end)
         ExecuteWithDelay(1500, function()
             dn_manager:OnRep_IsNight()
+            dn_manager = nil
         end)
     end
-    dn_manager = nil
 end
 
 -- Called Frequently
@@ -146,9 +146,9 @@ local function Handle_ClearActiveWeatherRequests()
         ExecuteWithDelay(2000, function()
             local selected = math.random(1, #Config.weather_event_selection)
             AFUtils.TriggerWeatherEvent(Config.weather_event_selection[selected])
+            dayNightManager = nil
         end)
     end
-    dayNightManager = nil
 end
 
 -- Hook Setup

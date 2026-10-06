@@ -57,10 +57,12 @@ local function Handle_IsCurrentlyDaytime(context, IsDaytime)
     if not dn_manager.IsNight then
         ExecuteWithDelay(1000, function()
             dn_manager.IsNight = true
-        end)
-        ExecuteWithDelay(1500, function()
-            dn_manager:OnRep_IsNight()
-            dn_manager = nil
+            ExecuteWithDelay(1500, function()
+                dn_manager:OnRep_IsNight()
+                ExecuteWithDelay(1500, function()
+                    dn_manager = nil
+                end)
+            end)
         end)
     end
 end

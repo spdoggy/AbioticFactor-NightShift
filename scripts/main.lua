@@ -87,6 +87,11 @@ local function Handle_InitializeTraits(context, Phd, FirstTime, Amnesia)
 
             item_id = "lantern"
             Utils.GiveItemToTarget(pawn, player_name, item_id, data_table, data_cat, 1)
+
+            data_table = "/Game/Blueprints/Items/ItemTable_Gear.ItemTable_Gear"
+            data_cat = "Gear"
+            item_id = "trinket_light_yellow"
+            Utils.GiveItemToTarget(pawn, player_name, item_id, data_table, data_cat, 1)
         end
     end
 end

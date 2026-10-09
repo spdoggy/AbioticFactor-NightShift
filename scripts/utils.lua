@@ -70,6 +70,8 @@ function Utils.GetWorld()
             end
         end
     end
+    Utils.error("[GetWorld]: Invalid World")
+    return TheWorld
 end
 
 
@@ -121,7 +123,13 @@ end
 function Utils.GetGameMode()
     if Utils.IsValid(TheWorld) and TheWorld.AuthorityGameMode then
         return TheWorld.AuthorityGameMode
+    else
+        local world = Utils.GetWorld()
+        if Utils.IsValid(world) and world.AuthorityGameMode then
+            return world.AuthorityGameMode
+        end
     end
+    Utils.error("[GetGameMode]: Failed to get AuthorityGameMode")
     return CreateInvalidObject() ---@type AGameModeBase
 end
 
@@ -132,6 +140,7 @@ function Utils.GetAiDirector()
         return AIDirectorCache
     end
     local gameMode = Utils.GetGameMode() ---@cast gameMode AAbiotic_Survival_GameMode_C
+
     if Utils.IsValid(gameMode) and gameMode.AI_Director then
         AIDirectorCache = gameMode.AI_Director
         return AIDirectorCache
@@ -153,7 +162,7 @@ function Utils.GetLeyakAiDirector()
         return ai_director.LeyakDirectorComponent
     end
 
-    Utils.error("[GetLeyakAiDirector]: Failed to get AiDirector")
+    Utils.error("[GetLeyakAiDirector]: Failed to get LeyakAiDirector")
     return CreateInvalidObject() ---@type ULeyakDirectorComponent_C
 end
 

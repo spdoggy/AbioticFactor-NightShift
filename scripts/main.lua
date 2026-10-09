@@ -19,7 +19,6 @@ ToggleKeyModifiers = {ModifierKey.CONTROL}
 ------------------------------------
 
 ------------------------------
-local AFUtils = require("AFUtils.AFUtils")
 local Utils = require("utils")
 local Config = require("../config")
 
@@ -29,9 +28,7 @@ DebugMode = false
 local last_weather_event =  Config.fog_type
 local clock_tick = 0
 
-
-LogInfo("Starting NightShift mod initialization")
-
+Utils.log("Starting NightShift mod initialization")
 
 local function LastWeatherInConfig()
     for _, f in pairs(Config.weather_event_selection) do
@@ -43,23 +40,32 @@ local function LastWeatherInConfig()
 end
 
 local function Handle_OnRep_IsNight(context)
-    dn_manager = AFUtils.GetDayNightManager()
-    dn_manager.IsNight = true
+    local dn_manager = context:get()
+    if Utils.IsValid(dn_manager) then
+        Utils.CacheDayNightManager(dn_manager)
+    else
+        print("Error: Could Not get Context at Handle_OnRep_IsNight")
+        dn_manager = Utils.GetDayNightManager()
+        dn_manager.IsNight = true
+    end
 end
 
 -- Called Every Hour (Sometimes)
 local function Handle_IsCurrentlyDaytime(context, IsDaytime)
     -- Set to Night
-    dn_manager = AFUtils.GetDayNightManager()
-    is_day = IsDaytime:get()
-    IsDaytime:set(false)
-    if not dn_manager.IsNight then
-        ExecuteWithDelay(1000, function()
-            dn_manager.IsNight = true
-        end)
-        ExecuteWithDelay(1500, function()
-            dn_manager:OnRep_IsNight()
-        end)
+    local dn_manager = context:get()
+    if Utils.IsValid(dn_manager) then
+        Utils.CacheDayNightManager(dn_manager)
+        local is_day = IsDaytime:get()
+        IsDaytime:set(false)
+        if not dn_manager.IsNight then
+            ExecuteWithDelay(1000, function()
+                dn_manager.IsNight = true
+            end)
+            ExecuteWithDelay(1500, function()
+                dn_manager:OnRep_IsNight()
+            end)
+        end
     end
 end
 
@@ -69,12 +75,12 @@ local function Handle_ProgressClock()
     if clock_tick % (20 * Config.hours_per_weather_event) == 0 then
         print("Selecting New Weather...")
         ExecuteWithDelay(1000, function()
-            AFUtils.TriggerWeatherEvent("None")
+            Utils.TriggerWeatherEvent("None")
         end)
         ExecuteWithDelay(4000, function()
             local selected = math.random(1, #Config.weather_event_selection)
             print(Config.weather_event_selection[selected])
-            AFUtils.TriggerWeatherEvent(Config.weather_event_selection[selected])
+            Utils.TriggerWeatherEvent(Config.weather_event_selection[selected])
         end)
     end
 end
@@ -126,26 +132,29 @@ local function Handle_VentWeatherFXToAllPlayers()
         ExecuteWithDelay(3000, function()
             local selected = math.random(1, #Config.weather_event_selection)
             print(selected)
-            AFUtils.TriggerWeatherEvent(Config.weather_event_selection[selected])
+            Utils.TriggerWeatherEvent(Config.weather_event_selection[selected])
         end)
     end
 end
 
-local function Handle_ClearActiveWeatherRequests()
+local function Handle_ClearActiveWeatherRequests(context)
+
     -- Store Current Weather Event Name
-    local dayNightManager = FindFirstOf("DayNightManager_C")
-    last_weather_event = dayNightManager.CurrentWeatherEvent:ToString()
-    if last_weather_event == "RadLeak" and Config.disable_fog_venting then
-        ExecuteWithDelay(2000, function()
-            local selected = math.random(1, #Config.weather_event_selection)
-            AFUtils.TriggerWeatherEvent(Config.weather_event_selection[selected])
-        end)
+    dn_manager = Utils.GetDayNightManager()
+    if Utils.IsValid(dn_manager) then
+        last_weather_event = dn_manager.CurrentWeatherEvent:ToString()
+        if last_weather_event == "RadLeak" and Config.disable_fog_venting then
+            ExecuteWithDelay(2000, function()
+                local selected = math.random(1, #Config.weather_event_selection)
+                Utils.TriggerWeatherEvent(Config.weather_event_selection[selected])
+            end)
+        end
     end
 end
 
 -- Hook Setup
 ExecuteInGameThread(function()
-    LogInfo("Initializing NightShift hooks")
+    Utils.log("Initializing NightShift hooks")
 
     ExecuteWithDelay(2500, function()
     local okHook, errHook = pcall(RegisterHook,
@@ -223,11 +232,12 @@ ExecuteInGameThread(function()
 
     NotifyOnNewObject("/Game/Blueprints/Environment/Systems/DayNightManager.DayNightManager_C", function(dn_manager)
         ExecuteWithDelay(2500, function()
+            Utils.CacheDayNightManager(dn_manager)
             dn_manager.IsNight = true
         end)
     end)
 
-    LogInfo("NightShift Hooks initialized")
+    Utils.log("NightShift Hooks initialized")
 end)
 
 if ToggleKey and ToggleKeyModifiers then
@@ -237,22 +247,23 @@ if ToggleKey and ToggleKeyModifiers then
             Enable = Enable or false
             ModEnabled = Enable
             local state = "Disabled"
-            local warningColor =  AFUtils.CriticalityLevels.Red
+            local warningColor =  Enums.ClientWarnMessageColors.Red
             if ModEnabled then
                 state = "Enabled"
-                warningColor =  AFUtils.CriticalityLevels.Green
+                warningColor =  Enums.ClientWarnMessageColors.Green
             end
             local stateMessage = "NightShift: " .. state
-            LogInfo(stateMessage)
-            -- AFUtils.ModDisplayTextChatMessage(stateMessage)
-            AFUtils.ClientDisplayWarningMessage(stateMessage, warningColor)
+            Utils.log(stateMessage)
+            Utils.AllClientDisplayWarningMessage(stateMessage, warningColor)
 
+
+            Utils.TriggerWeatherEvent("Fog")
             
-            for _, f in pairs(Config.weather_event_selection) do
-                --local ok2, name = pcall(function() return f:get():ToString() end)
-                print(f)
-                --if ok2 and name and name ~= "" then out[name] = true end
-            end
+            -- for _, f in pairs(Config.weather_event_selection) do
+            --     --local ok2, name = pcall(function() return f:get():ToString() end)
+            --     print(f)
+            --     --if ok2 and name and name ~= "" then out[name] = true end
+            -- end
 
         end)
     end
@@ -262,4 +273,4 @@ if ToggleKey and ToggleKeyModifiers then
     end)
 end
 
-LogInfo("Mod loaded successfully")
+Utils.log("Mod loaded successfully")

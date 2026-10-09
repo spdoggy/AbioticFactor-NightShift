@@ -251,20 +251,15 @@ if ToggleKey and ToggleKeyModifiers then
             if ModEnabled then
                 state = "Enabled"
                 warningColor =  Enums.ClientWarnMessageColors.Green
+                Config.disable_fog_venting = true
+                Utils.TriggerWeatherEvent("Fog")
+            else
+                Config.disable_fog_venting = false
+                Utils.TriggerWeatherEvent("None")
             end
-            local stateMessage = "NightShift: " .. state
+            local stateMessage = "NightShift: Fog:" .. state
             Utils.log(stateMessage)
             Utils.AllClientDisplayWarningMessage(stateMessage, warningColor)
-
-
-            Utils.TriggerWeatherEvent("Fog")
-            
-            -- for _, f in pairs(Config.weather_event_selection) do
-            --     --local ok2, name = pcall(function() return f:get():ToString() end)
-            --     print(f)
-            --     --if ok2 and name and name ~= "" then out[name] = true end
-            -- end
-
         end)
     end
     

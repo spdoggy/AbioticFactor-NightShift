@@ -23,9 +23,11 @@ local Utils = {}
 -- INSTANCES
 -- ============================================================
 local TheWorld = CreateInvalidObject() ---@cast WorldCache UWorld
+local DayNightManagerCache = CreateInvalidObject() ---@cast DayNightManagerCache ADayNightManager_C
 local LeyakNpcCache = CreateInvalidObject() -- @ANPC_Leyak_C;
 local LeyakDirectorCache = CreateInvalidObject() -- @ULeyakDirectorComponent_C;
 local AIDirectorCache = CreateInvalidObject() ---@cast AIDirectorCache AAbiotic_AIDirector_C
+local WeatherEventLibCache = CreateInvalidObject() ---@cast WeatherEventLibCache UWeatherEventHandleFunctionLibrary
 local sound_has_finished = true
 
 local PROP_ITEM_DATA_TABLE = "ItemDataTable_18_BF1052F141F66A976F4844AB2B13062B" -- cooked GUID slot fields; first to break on a game update
@@ -172,6 +174,28 @@ function Utils.GetLeyak()
     return CreateInvalidObject() ---@type ANPC_Leyak_C
 end
 
+---Get the current DayNightManager
+---@return ADayNightManager_C
+function Utils.GetDayNightManager()
+    if Utils.IsValid(DayNightManagerCache) then
+        return DayNightManagerCache
+    end
+
+    local ai_director = Utils.GetAiDirector()
+    if Utils.IsValid(ai_director) and ai_director.DayNightManager then
+        DayNightManagerCache = ai_director.DayNightManager
+    end
+    return DayNightManagerCache
+end
+
+--Cache the DayNightManager
+function Utils.CacheDayNightManager(dn_manager)
+    if Utils.IsValid(dn_manager) then
+        DayNightManagerCache = dn_manager
+    end
+end
+
+
 ---Find a PlayerState object by the player_id
 ---@param player_id string|FString
 ---@return AAbiotic_PlayerState_C
@@ -228,6 +252,22 @@ function Utils.GetPlayerName(player)
     return ""
 end
 
+---Return a player from the list of online players
+---@return AAbiotic_PlayerState_C
+function Utils.GetRandomPlayerState()
+    if Utils.IsValid(TheWorld) then
+        local gameState = TheWorld.GameState ---@type AGameStateBase
+        if Utils.IsValid(gameState) and gameState.PlayerArray then
+            local selected = math.random(1, #gameState.PlayerArray)
+            local playerState = gameState.PlayerArray[selected] ---@cast playerState AAbiotic_PlayerState_C
+            local playerName = playerState.PlayerNamePrivate:ToString()
+            return playerState
+        end
+    end
+    return CreateInvalidObject() ---@type AAbiotic_PlayerState_C
+end
+
+
 ---Get the Admin Player from ConfigAdmin
 ---@return AAbiotic_PlayerCharacter_C
 function Utils.GetAdminPlayer()
@@ -252,6 +292,20 @@ function Utils.AdminMessage(msg, msg_prefix, prefix_color,  msg_color)
         local admin_player_controller = admin_player.MyPlayerController    
         admin_player_controller:Local_DisplayTextChatMessage(msg_prefix, prefix_color, msg, msg_color, admin_player_controller, false)
         Utils.log(msg_prefix .. msg)
+    end
+end
+
+
+---Send a text chat message to the admin player only
+---@param msg string Message to Send
+---@param msg_prefix FString|string Prefix of Message to Send, i.e name of the Mod
+---@param prefix_color table Message prefix color
+---@param msg_color table Message color
+function Utils.AdminWarnMessage(msg, CriticalityLevel, WarningBeep)
+    local admin_player = Utils.GetPlayerFromId(ConfigAdmin.admin_id)
+    if Utils.IsValid(admin_player) then
+        Utils.ClientDisplayWarningMessage(admin_player, msg, CriticalityLevel, WarningBeep)
+        Utils.log(msg)
     end
 end
 
@@ -307,9 +361,30 @@ function Utils.AllClientDisplayWarningMessage(Message, CriticalityLevel, Warning
                 if fText then
                     playerState.PawnPrivate:Client_DisplayWarningMessage(fText, CriticalityLevel, WarningBeep)
                 else
-                    LogError('ClientDisplayWarningMessage: Couldn\'t get a FText out of "'..Message..'"')
+                    Utils.log('ClientDisplayWarningMessage: Couldn\'t get a FText out of "'..Message..'"')
                 end
             end
+        end
+    end
+end
+
+---AAbiotic_PlayerCharacter_C function, that shows colored text at the top of the screen and can play a warning beep
+---@param player AAbiotic_PlayerCharacter_C
+---@param Message string
+---@param CriticalityLevel ECriticalityLevels|CriticalityLevels|integer|nil Color of the message is based on the CriticalityLevel
+---@param WarningBeep boolean|nil Should a warning sound be played
+function Utils.ClientDisplayWarningMessage(player, Message, CriticalityLevel, WarningBeep)
+    if not Message then return end
+    -- Default values
+    CriticalityLevel = CriticalityLevel or MessageColors.Green
+    WarningBeep = WarningBeep or false
+
+    if Utils.IsValid(player) then
+        local fText = FText(Message)
+        if fText then
+            player:Client_DisplayWarningMessage(fText, CriticalityLevel, WarningBeep)
+        else
+            Utils.log('ClientDisplayWarningMessage: Couldn\'t get a FText out of "'..Message..'"')
         end
     end
 end
@@ -333,6 +408,30 @@ function Utils.GetWorldEventFlags()
     for _, f in ipairs(flags) do
         local ok2, name = pcall(function() return f:get():ToString() end)
         if ok2 and name and name ~= "" then out[name] = true end
+    end
+    return out
+end
+
+
+
+---Print a List of the story event flags
+function Utils.PrintWorldEventFlags()
+
+    wfs = FindFirstOf("WorldFlagSubsystem")
+
+    if not Utils.IsValid(wfs) then
+        return {}
+    end
+
+    local ok, loaded = pcall(function() return wfs:HasWorldFlagsLoaded() end)
+    if not ok or not loaded then return nil end
+
+    local out = {}
+    local flags = {}
+    pcall(function() wfs:GetWorldFlags(flags) end)
+    for _, f in ipairs(flags) do
+        local ok2, name = pcall(function() return f:get():ToString() end)
+        print(name)
     end
     return out
 end
@@ -656,6 +755,63 @@ function Utils.GiveItemToTarget(pawn, name, itemId, item_table, item_cat, quanti
     print(string.format("+ Gave %s: %s x%d", name, itemId, quantity))
     return true
 end
+
+-----------------
+
+
+---@return UWeatherEventHandleFunctionLibrary
+function Utils.GetWeatherEventLib()
+    if not Utils.IsValid(WeatherEventLibCache) then
+        WeatherEventLibCache = StaticFindObject("/Script/AbioticFactor.Default__WeatherEventHandleFunctionLibrary")
+        ---@cast WeatherEventLibCache UWeatherEventHandleFunctionLibrary
+    end
+    return WeatherEventLibCache
+end
+
+
+---Triggers a weather event
+---@param EventName string|WeatherEvents
+---@return boolean Success
+function Utils.TriggerWeatherEvent(EventName)
+
+    if type(EventName) ~= "string" then return false end
+
+    local weatherEventHandleFunctionLibrary = Utils.GetWeatherEventLib()
+    local dn_manager = Utils.GetDayNightManager()
+    if Utils.IsValid(weatherEventHandleFunctionLibrary) and Utils.IsValid(dn_manager) then
+        ---@type table<LocalUnrealParam>
+        local outRowHandles = {} ---@type LocalUnrealParam[]
+        weatherEventHandleFunctionLibrary:GetAllWeatherEventRowHandles(outRowHandles)
+
+        if #outRowHandles > 0 and EventName == "None" then
+            local rowHandle = outRowHandles[1]:get() ---@type FWeatherEventRowHandle
+            rowHandle.RowName = NAME_None
+            local event_table_row = { 
+                RowName = rowHandle.RowName,
+                DataTablePath = rowHandle.DataTablePath
+            }
+            dn_manager:TriggerWeatherEvent(event_table_row)
+            return true
+        end
+
+        for i = 1, #outRowHandles, 1 do
+            local param = outRowHandles[i]
+            local rowHandle = param:get() ---@type FWeatherEventRowHandle
+            local rowName = rowHandle.RowName:ToString()
+            if rowName == EventName then
+                local event_table_row = { 
+                    RowName = rowHandle.RowName,
+                    DataTablePath = rowHandle.DataTablePath
+                }
+                dn_manager:TriggerWeatherEvent(event_table_row)
+                return true
+            end
+        end
+    end
+    return false
+end
+
+
 
 
 return Utils

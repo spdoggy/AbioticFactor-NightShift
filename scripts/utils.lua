@@ -820,7 +820,37 @@ function Utils.TriggerWeatherEvent(EventName)
     return false
 end
 
+-- Log Current In-Game Time
+function Utils.LogCurrentTime()
+    local dn_manager = Utils.GetDayNightManager()
+    if not Utils.IsValid(dn_manager) then
+        return
+    end
+    local total_seconds = dn_manager.CurrentTimeInSeconds
+    local hours = math.floor((total_seconds/60)/60)
+    local minutes = math.floor( (dn_manager.CurrentTimeInSeconds - (hours*60*60) ) / 60 )
+    local seconds = dn_manager.CurrentTimeInSeconds - (hours*60*60) - (minutes*60)
+    Utils.log(string.format("Time: %02d:%02d:%02d", hours,minutes,seconds))
+end
 
+
+----
+
+-- Return true if a player has a matching named Buff
+---@param player AAbiotic_PlayerCharacter_C
+---@param buff_name string
+---@return boolean
+function Utils.doesPlayerHaveBuff(player, buff_name)
+    local buff_map = player.BuffDebuffComponent.CurrentBuffs -- @TArray<FBuffDebuffEntry> CurrentBuffs;
+    local has_the_buff = false
+    buff_map:ForEach(function(index, value)
+        local buff_debuff_name = value:get().BuffRow.RowName:ToString()
+        if buff_debuff_name == buff_name then
+            has_the_buff = true
+        end
+    end)
+    return has_the_buff
+end
 
 
 return Utils

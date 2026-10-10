@@ -60,8 +60,8 @@ local function set_night(dn_manager, night)
         dn_manager.MorningStartHour = -1
         dn_manager.NightfallStartHour = -1
 
-        -- Setup the Night Time Tick Rate
-        dn_manager.SecondsPerRealSecond_Night = Config.SecondsPerRealSecond_Night
+        -- Setup the Night Time Tick Rate to Match Day Rate        
+        dn_manager.SecondsPerRealSecond_Night = dn_manager.SecondsPerRealSecond_Day
 
         -- Check for NightTime
         Utils.log("[Handle_OnRep_LastKnownHour]: Detected IsNight = %s")
@@ -83,21 +83,6 @@ local function Handle_OnRep_IsNight(context)
         print("Error: Could Not get Context at Handle_OnRep_IsNight")
         dn_manager = Utils.GetDayNightManager()
     end
-end
-
--- Called Sometimes
-local function Handle_IsCurrentlyDaytime(context, IsDaytime)
-    -- Set to Night
-    -- local dn_manager = context:get()
-    -- if Utils.IsValid(dn_manager) then
-    --     Utils.CacheDayNightManager(dn_manager)
-    --     if temp_power_meter <= 0 then
-    --         Utils.log("Handle_IsCurrentlyDaytime")
-    --         local is_day = IsDaytime:get()
-    --         IsDaytime:set(false)
-    --         set_night(dn_manager, true)
-    --     end
-    -- end
 end
 
 -- Called Every Hour (Usually)
@@ -253,18 +238,6 @@ ExecuteInGameThread(function()
         end
     end)
 
-    ExecuteWithDelay(2500, function()
-    local okHook, errHook = pcall(RegisterHook,
-        "/Game/Blueprints/Environment/Systems/DayNightManager.DayNightManager_C:IsCurrentlyDaytime",
-        Handle_IsCurrentlyDaytime
-    )
-        if not okHook then
-            print("NightShift Hook registration failed: %s", tostring(errHook))
-        else
-            print("NightShift Hook registration success: Handle_IsCurrentlyDaytime")
-        end
-    end)
-
     --/Game/Blueprints/Characters/Abiotic_CharacterProgressionComponent.Abiotic_CharacterProgressionComponent_C:InitializeTraits
     ExecuteWithDelay(2500, function()
     local okHook, errHook = pcall(RegisterHook,
@@ -318,10 +291,16 @@ ExecuteInGameThread(function()
     end)
 
     NotifyOnNewObject("/Game/Blueprints/Environment/Systems/DayNightManager.DayNightManager_C", function(dn_manager)
-        ExecuteWithDelay(2500, function()
-            Utils.CacheDayNightManager(dn_manager)
-            set_night(dn_manager, true)
+        Utils.CacheDayNightManager(dn_manager)    
+        set_night(dn_manager, true)
+        dn_manager.IsNight = true
+        dn_manager:OnRep_IsNight()
+        -- Starting Weather Event
+        ExecuteWithDelay(20000, function()
+            local selected = math.random(1, #Config.weather_event_selection)
+            Utils.TriggerWeatherEvent(Config.weather_event_selection[selected])
         end)
+    
     end)
 
     Utils.log("NightShift Hooks initialized")

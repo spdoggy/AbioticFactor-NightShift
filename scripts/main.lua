@@ -27,6 +27,8 @@ ModVersion = "1.0.0"
 DebugMode = false
 local last_weather_event =  Config.fog_type
 local clock_tick = 0
+local hour_tick = 0
+local temp_power_meter = 0
 
 Utils.log("Starting NightShift mod initialization")
 
@@ -39,6 +41,40 @@ local function LastWeatherInConfig()
     return false
 end
 
+--- Set to Night Time
+---@param dn_manager ADayNightManager_C
+---@param night boolean
+local function set_night(dn_manager, night)
+
+    if temp_power_meter > 0 then
+        return
+    end
+
+    if not Utils.IsValid(dn_manager) then
+        return
+    end
+
+    -- Check for Night Time
+    if not dn_manager.IsNight == night then
+        -- Always Disable Night/Morning Start Hour
+        dn_manager.MorningStartHour = -1
+        dn_manager.NightfallStartHour = -1
+
+        -- Setup the Night Time Tick Rate
+        dn_manager.SecondsPerRealSecond_Night = Config.SecondsPerRealSecond_Night
+
+        -- Check for NightTime
+        Utils.log("[Handle_OnRep_LastKnownHour]: Detected IsNight = %s")
+        Utils.log(dn_manager.IsNight )
+        ExecuteWithDelay(1000, function()
+            dn_manager.IsNight = night
+        end)
+        ExecuteWithDelay(1500, function()
+            dn_manager:OnRep_IsNight()
+        end)
+    end
+end
+
 local function Handle_OnRep_IsNight(context)
     local dn_manager = context:get()
     if Utils.IsValid(dn_manager) then
@@ -46,43 +82,85 @@ local function Handle_OnRep_IsNight(context)
     else
         print("Error: Could Not get Context at Handle_OnRep_IsNight")
         dn_manager = Utils.GetDayNightManager()
-        dn_manager.IsNight = true
     end
 end
 
--- Called Every Hour (Sometimes)
+-- Called Sometimes
 local function Handle_IsCurrentlyDaytime(context, IsDaytime)
     -- Set to Night
-    local dn_manager = context:get()
-    if Utils.IsValid(dn_manager) then
-        Utils.CacheDayNightManager(dn_manager)
-        local is_day = IsDaytime:get()
-        IsDaytime:set(false)
-        if not dn_manager.IsNight then
-            ExecuteWithDelay(1000, function()
-                dn_manager.IsNight = true
-            end)
-            ExecuteWithDelay(1500, function()
-                dn_manager:OnRep_IsNight()
-            end)
-        end
-    end
+    -- local dn_manager = context:get()
+    -- if Utils.IsValid(dn_manager) then
+    --     Utils.CacheDayNightManager(dn_manager)
+    --     if temp_power_meter <= 0 then
+    --         Utils.log("Handle_IsCurrentlyDaytime")
+    --         local is_day = IsDaytime:get()
+    --         IsDaytime:set(false)
+    --         set_night(dn_manager, true)
+    --     end
+    -- end
 end
 
--- Called Frequently
-local function Handle_ProgressClock()
-    clock_tick = clock_tick + 1
-    if clock_tick % (20 * Config.hours_per_weather_event) == 0 then
-        print("Selecting New Weather...")
-        ExecuteWithDelay(1000, function()
-            Utils.TriggerWeatherEvent("None")
-        end)
-        ExecuteWithDelay(4000, function()
-            local selected = math.random(1, #Config.weather_event_selection)
-            print(Config.weather_event_selection[selected])
-            Utils.TriggerWeatherEvent(Config.weather_event_selection[selected])
-        end)
+-- Called Every Hour (Usually)
+local function Handle_OnRep_LastKnownHour(context)
+
+    Utils.log("[Handle_OnRep_LastKnownHour]")
+
+    local dn_manager = context:Get()
+    if Utils.IsValid(dn_manager) then
+        Utils.CacheDayNightManager()
+    else
+        return
     end
+
+    Utils.log("temp_power_meter: "..temp_power_meter)
+    -- Check Night while here
+    if temp_power_meter > 0 then
+        temp_power_meter = temp_power_meter - 1
+        set_night(dn_manager, false)
+    else
+        set_night(dn_manager, true)
+    end
+    
+
+    hour_tick = hour_tick + 1
+    if hour_tick % (Config.hours_per_weather_event) == 0 then
+
+        local power_dice_roll = math.random()
+        Utils.log(string.format("Temp Emergency Power Roll: %.2f < %.2f", power_dice_roll*100, Config.temp_power_restore_chance))
+        if power_dice_roll < (Config.temp_power_restore_chance/100) then
+
+            -- Set Power Meter Level First
+            temp_power_meter = Config.temp_power_meter_max_hours
+
+            -- Vent Weather
+            Utils.TriggerWeatherEvent("None")
+
+            -- Msg 1
+            Utils.AllClientDisplayWarningMessage("Something rumbles deep below...", Enums.ClientWarnMessageColors.Purple, false)
+
+            -- Msg 2
+            msg = string.format(".. Facility Power Temporarily Roars Back to Life! (%d hours)", temp_power_meter)
+            Utils.AllClientDisplayWarningMessage(msg, Enums.ClientWarnMessageColors.Green, false)
+
+            -- Trigger Lights/Power On
+            dn_manager.IsNight = false
+            dn_manager:OnRep_IsNight()
+        elseif temp_power_meter <= 0 then
+            print("Selecting New Weather...")
+            ExecuteWithDelay(1000, function()
+                Utils.TriggerWeatherEvent("None")
+            end)
+            ExecuteWithDelay(4000, function()
+                local selected = math.random(1, #Config.weather_event_selection)
+                print(Config.weather_event_selection[selected])
+                Utils.TriggerWeatherEvent(Config.weather_event_selection[selected])
+            end)
+        end
+
+
+    end
+
+
 end
 
 -- Handle New Player Joining Equipment
@@ -121,6 +199,13 @@ local function Handle_InitializeTraits(context, Phd, FirstTime, Amnesia)
                 data_cat = "Gear"
                 item_id = "trinket_light_yellow"
                 Utils.GiveItemToTarget(pawn, player_name, item_id, data_table, data_cat, 1)
+            end
+
+            if Config.custom_emergency_starter_kit then
+                
+                for _, item in pairs(Config.custom_emergency_starter_kit) do
+                    Utils.GiveItemToTarget(pawn, player_name, item.item_id, item.table, item.cat, item.qty)
+                end
             end
         end
     end
@@ -180,18 +265,7 @@ ExecuteInGameThread(function()
         end
     end)
 
-    ExecuteWithDelay(2500, function()
-        local okHook, errHook = pcall(RegisterHook,
-            "/Game/Blueprints/Environment/Systems/DayNightManager.DayNightManager_C:ProgressClock",
-            Handle_ProgressClock
-        )
-        if not okHook then
-            Utils.error(string.format("Hook registration failed: %s", tostring(errHook)))
-        else
-            Utils.log("Hook registration success: Handle_ProgressClock")
-        end
-    end)
-
+    --/Game/Blueprints/Characters/Abiotic_CharacterProgressionComponent.Abiotic_CharacterProgressionComponent_C:InitializeTraits
     ExecuteWithDelay(2500, function()
     local okHook, errHook = pcall(RegisterHook,
         "/Game/Blueprints/Characters/Abiotic_CharacterProgressionComponent.Abiotic_CharacterProgressionComponent_C:InitializeTraits",
@@ -204,7 +278,7 @@ ExecuteInGameThread(function()
         end
     end)
 
-        -- Function /Game/Blueprints/Environment/Systems/DayNightManager.DayNightManager_C:VentWeatherFXToAllPlayers
+    -- Function /Game/Blueprints/Environment/Systems/DayNightManager.DayNightManager_C:VentWeatherFXToAllPlayers
     ExecuteWithDelay(2500, function()
     local okHook, errHook = pcall(RegisterHook,
         "/Game/Blueprints/Environment/Systems/DayNightManager.DayNightManager_C:VentWeatherFXToAllPlayers",
@@ -230,10 +304,23 @@ ExecuteInGameThread(function()
         end
     end)
 
+    -- /Game/Blueprints/Environment/Systems/DayNightManager.DayNightManager_C:OnRep_LastKnownHour
+    ExecuteWithDelay(2500, function()
+    local okHook, errHook = pcall(RegisterHook,
+        "/Game/Blueprints/Environment/Systems/DayNightManager.DayNightManager_C:OnRep_LastKnownHour",
+        Handle_OnRep_LastKnownHour
+    )
+        if not okHook then
+            print("NightShift Hook registration failed: %s", tostring(errHook))
+        else
+            print("NightShift Hook registration success: OnRep_LastKnownHour")
+        end
+    end)
+
     NotifyOnNewObject("/Game/Blueprints/Environment/Systems/DayNightManager.DayNightManager_C", function(dn_manager)
         ExecuteWithDelay(2500, function()
             Utils.CacheDayNightManager(dn_manager)
-            dn_manager.IsNight = true
+            set_night(dn_manager, true)
         end)
     end)
 
@@ -252,7 +339,7 @@ if ToggleKey and ToggleKeyModifiers then
                 state = "Enabled"
                 warningColor =  Enums.ClientWarnMessageColors.Green
                 Config.disable_fog_venting = true
-                Utils.TriggerWeatherEvent("Fog")
+                --Utils.TriggerWeatherEvent("Fog")
             else
                 Config.disable_fog_venting = false
                 Utils.TriggerWeatherEvent("None")
@@ -260,6 +347,36 @@ if ToggleKey and ToggleKeyModifiers then
             local stateMessage = "NightShift: Fog:" .. state
             Utils.log(stateMessage)
             Utils.AllClientDisplayWarningMessage(stateMessage, warningColor)
+            
+            dn_manager = Utils.GetDayNightManager()
+            print(dn_manager.IsNight)
+            
+            print("SecondsPerRealSecond_Day")
+            print(dn_manager.SecondsPerRealSecond_Day)
+            print("SecondsPerRealSecond_Night")
+            print(dn_manager.SecondsPerRealSecond_Night)
+
+            dn_manager.SecondsPerRealSecond_Day   = 1000 -- Defwult: 30
+            dn_manager.SecondsPerRealSecond_Night = 1000 -- Default: 120
+
+            print("MorningStartHour")
+            print(dn_manager.MorningStartHour)
+            dn_manager.MorningStartHour = -1
+
+            print("NightfallStartHour")
+            print(dn_manager.NightfallStartHour)
+            
+
+            --temp_power_meter = 3
+
+            Utils.AllClientDisplayWarningMessage("Something rumbles deep below...", Enums.ClientWarnMessageColors.Green, false)
+            
+            --dn_manager:OnRep_CurrentDay()
+            
+
+            
+            
+
         end)
     end
     

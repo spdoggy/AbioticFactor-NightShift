@@ -58,12 +58,11 @@ local function set_night(dn_manager, night)
     -- Check for Night Time
     if not dn_manager.IsNight == night then
 
-        -- TODO: Investigate this more, might need to leave it in
-        -- so temporary day time can clear out Anomalies.
-
-        -- Always Disable Night/Morning Start Hour
-        --dn_manager.MorningStartHour = -1
-        dn_manager.NightfallStartHour = dn_manager.MorningStartHour + 1
+        -- [TODO]: Investigate this more, might need to leave it in
+        -- so the temporary day time can clear out Anomalies.
+        -- Anomalies started to overflow during initial dedicated server tests
+        dn_manager.MorningStartHour = 6
+        dn_manager.NightfallStartHour = 7
 
         -- Setup the Night Time Tick Rate to Match Day Rate        
         dn_manager.SecondsPerRealSecond_Night = dn_manager.SecondsPerRealSecond_Day
@@ -87,6 +86,10 @@ local function Handle_OnRep_IsNight(context)
     else
         print("Error: Could Not get Context at Handle_OnRep_IsNight")
         dn_manager = Utils.GetDayNightManager()
+        -- [TODO]: I do not believe this is needed
+        -- if temp_power_meter <= 0 then
+        --     dn_manager.IsNight = true
+        -- end
     end
 end
 
@@ -257,14 +260,11 @@ local function Handle_ReceiveBeginPlay(context)
         Utils.WorldCache(world)
         mod_initialization = true
 
-        -- Initialize to Night
-        ExecuteWithDelay(10000, function()
-            ExecuteInGameThread(function()
-                set_night(dn_manager, true)
-                dn_manager.IsNight = true
-                dn_manager:OnRep_IsNight()
-            end)
-        end)
+        -- Re-Initialize to Night
+        dn_manager = Utils.GetDayNightManager()
+        dn_manager.IsNight = true
+        dn_manager:OnRep_IsNight()
+
 
         -- Starting Weather Event
         ExecuteWithDelay(20000, function()
@@ -363,6 +363,25 @@ ExecuteInGameThread(function()
     NotifyOnNewObject("/Game/Blueprints/Environment/Systems/DayNightManager.DayNightManager_C", function(dn_manager)
         Utils.log("NotifyOnNewObject: DayNightManager_C")
         Utils.CacheDayNightManager(dn_manager)
+
+        -- Important: Overriding the start hours here is the magic combination that will make
+        -- even the local clients think power is off at the very start for a dedicated server
+        -- i.e Visual FX like the Cafeteria Ventilation Fan will be powered off and not moving even
+        -- if this mod is not installed on the local player's instance / coming from CrossPlay
+        dn_manager.MorningStartHour = -1
+        dn_manager.NightfallStartHour = -1
+        dn_manager.IsNight = true
+        dn_manager:OnRep_IsNight()
+
+        -- There will be some initial hiccups, so re-enforce night-time a bit after startup
+        -- Don't try to set the first weather event here though, handle that during ReceiveBeginPlay
+        -- instead to prevent Cleanup/GarbageCollection issues.
+        ExecuteWithDelay(2500, function()
+            set_night(dn_manager, true)
+            dn_manager.IsNight = true
+            dn_manager:OnRep_IsNight()
+        end)
+
     end)
 
     NotifyOnNewObject("/Script/AbioticFactor.Default__WeatherEventHandleFunctionLibrary", function(w_event_lib)

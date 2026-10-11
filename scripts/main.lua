@@ -264,16 +264,6 @@ local function Handle_ReceiveBeginPlay(context)
         dn_manager = Utils.GetDayNightManager()
         dn_manager.IsNight = true
         dn_manager:OnRep_IsNight()
-
-
-        -- Starting Weather Event
-        ExecuteWithDelay(20000, function()
-            ExecuteInGameThread(function()
-                local selected = math.random(1, #Config.weather_event_selection)
-                Utils.TriggerWeatherEvent(Config.weather_event_selection[selected])
-            end)
-        end)
-
     end
 
 end
@@ -380,6 +370,14 @@ ExecuteInGameThread(function()
             set_night(dn_manager, true)
             dn_manager.IsNight = true
             dn_manager:OnRep_IsNight()
+        end)
+
+        -- Starting Weather Event
+        ExecuteWithDelay(20000, function()
+            ExecuteInGameThread(function()
+                local selected = math.random(1, #Config.weather_event_selection)
+                Utils.TriggerWeatherEvent(Config.weather_event_selection[selected])
+            end)
         end)
 
     end)

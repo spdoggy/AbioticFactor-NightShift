@@ -5,14 +5,14 @@ return {
 
     -- [General Config] ===================================
     disable_fog_venting = true,
-    hours_per_weather_event = 28,
+    hours_per_weather_event = 25,
     player_starts_with_trinket = true,
     player_starts_with_lantern = true,
 
     -- [Facility Temporary Emergency Power]
     -- Chance for Temporary Facility Emergency Power Restoration
     temp_power_restore_chance = 10,
-    temp_power_meter_max_hours = 3,
+    temp_power_meter_max_hours = 6,
 
     -- [Player Starting Kit] ==============================
     -- Add your own custom starting items below to the kit

@@ -259,9 +259,11 @@ local function Handle_ReceiveBeginPlay(context)
 
         -- Initialize to Night
         ExecuteWithDelay(10000, function()
-            set_night(dn_manager, true)
-            dn_manager.IsNight = true
-            dn_manager:OnRep_IsNight()
+            ExecuteInGameThread(function()
+                set_night(dn_manager, true)
+                dn_manager.IsNight = true
+                dn_manager:OnRep_IsNight()
+            end)
         end)
 
         -- Starting Weather Event
@@ -395,27 +397,30 @@ if ToggleKey and ToggleKeyModifiers then
             Utils.AllClientDisplayWarningMessage(stateMessage, warningColor)
             
             dn_manager = Utils.GetDayNightManager()
-            print(dn_manager.IsNight)
+            -- print(dn_manager.IsNight)
             
-            print("SecondsPerRealSecond_Day")
-            print(dn_manager.SecondsPerRealSecond_Day)
-            print("SecondsPerRealSecond_Night")
-            print(dn_manager.SecondsPerRealSecond_Night)
+            -- print("SecondsPerRealSecond_Day")
+            -- print(dn_manager.SecondsPerRealSecond_Day)
+            -- print("SecondsPerRealSecond_Night")
+            -- print(dn_manager.SecondsPerRealSecond_Night)
 
-            dn_manager.SecondsPerRealSecond_Day   = 1000 -- Default: 30
-            dn_manager.SecondsPerRealSecond_Night = 1000 -- Default: 120
+            -- dn_manager.SecondsPerRealSecond_Day   = 1000 -- Default: 30
+            -- dn_manager.SecondsPerRealSecond_Night = 1000 -- Default: 120
 
-            print("MorningStartHour")
-            print(dn_manager.MorningStartHour)
-            dn_manager.MorningStartHour = -1
+            -- print("MorningStartHour")
+            -- print(dn_manager.MorningStartHour)
+            -- dn_manager.MorningStartHour = -1
 
-            print("NightfallStartHour")
-            print(dn_manager.NightfallStartHour)
+            -- print("NightfallStartHour")
+            -- print(dn_manager.NightfallStartHour)
             
 
-            --temp_power_meter = 3
+            temp_power_meter = 6
 
             Utils.AllClientDisplayWarningMessage("Something rumbles deep below...", Enums.ClientWarnMessageColors.Green, false)
+            -- Trigger Lights/Power On
+            dn_manager.IsNight = false
+            dn_manager:OnRep_IsNight()
             
             --dn_manager:OnRep_CurrentDay()
             

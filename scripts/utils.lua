@@ -79,14 +79,14 @@ end
 ---Debug Logging
 function Utils.log(message)
     if Config.Debug then
-        print(message)
+        print(message.."\n")
     end
 end
 
 
 ---Error Logging
 function Utils.error(message)
-    print("Error: " .. message)
+    print("Error: " .. message .. "\n")
 end
 
 ---Log a Vector
@@ -95,9 +95,9 @@ end
 function Utils.log_vector(vector, actor_name)
     if Config.Debug then
         if actor_name then
-            print(string.format("%s@X/Y/Z: %f, %f, %f", actor_name, vector.X, vector.Y, vector.Z))
+            print(string.format("%s@X/Y/Z: %f, %f, %f\n", actor_name, vector.X, vector.Y, vector.Z))
         else
-            print(string.format("X/Y/Z: %f, %f, %f", vector.X, vector.Y, vector.Z))
+            print(string.format("X/Y/Z: %f, %f, %f\n", vector.X, vector.Y, vector.Z))
         end
     end
 end
@@ -357,7 +357,7 @@ end
 function Utils.AllClientDisplayWarningMessage(Message, CriticalityLevel, WarningBeep)
     if not Message then return end
     -- Default values
-    CriticalityLevel = CriticalityLevel or MessageColors.Green
+    CriticalityLevel = CriticalityLevel or Enums.ClientWarnMessageColors.Green
     WarningBeep = WarningBeep or false
 
     if Utils.IsValid(TheWorld) then
@@ -385,7 +385,7 @@ end
 function Utils.ClientDisplayWarningMessage(player, Message, CriticalityLevel, WarningBeep)
     if not Message then return end
     -- Default values
-    CriticalityLevel = CriticalityLevel or MessageColors.Green
+    CriticalityLevel = CriticalityLevel or Enums.ClientWarnMessageColors.Green
     WarningBeep = WarningBeep or false
 
     if Utils.IsValid(player) then
@@ -449,9 +449,11 @@ end
 ---@return boolean
 function Utils.WorldHasEventOccurred(event_name)
     local event_flags = Utils.GetWorldEventFlags()
-    for k, v in pairs(event_flags) do
-        if k == event_name and v then
-            return true
+    if event_flags then
+        for k, v in pairs(event_flags) do
+            if k == event_name and v then
+                return true
+            end
         end
     end
     return false
@@ -767,6 +769,12 @@ end
 
 -----------------
 
+
+function Utils.CacheWeatherEventLib(w_event_lib)
+    if Utils.IsValid(w_event_lib) then
+        WeatherEventLibCache = w_event_lib
+    end
+end
 
 ---@return UWeatherEventHandleFunctionLibrary
 function Utils.GetWeatherEventLib()

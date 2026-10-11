@@ -29,6 +29,7 @@ local last_weather_event =  Config.fog_type
 local clock_tick = 0
 local hour_tick = 0
 local temp_power_meter = 0
+local next_day_has_power = false
 local mod_initialization = false
 
 Utils.log("Starting NightShift mod initialization")
@@ -105,6 +106,39 @@ local function Handle_OnRep_LastKnownHour(context)
         return
     end
 
+    Utils.log("dn_manager.LastKnownHour")
+    Utils.log(dn_manager.LastKnownHour)
+
+    if next_day_has_power then
+        
+        -- Prepare for Power Restore Next Hour
+        if dn_manager.LastKnownHour == 5 then
+            Utils.log("Next Day has Power: Now=5am")
+            dn_manager.MorningStartHour = 6
+            temp_power_meter = Config.temp_power_meter_max_hours
+            dn_manager.NightfallStartHour = dn_manager.MorningStartHour + temp_power_meter
+
+        end
+
+        -- Trigger Morning Now at 6am
+        if dn_manager.LastKnownHour == 6 then
+
+            -- Msg 1
+            Utils.AllClientDisplayWarningMessage("Something rumbles deep below...", Enums.ClientWarnMessageColors.Purple, false)
+
+            -- Msg 2
+            local msg = string.format(".. Facility Power Temporarily Roars Back to Life! (%d hours)", temp_power_meter)
+            Utils.AllClientDisplayWarningMessage(msg, Enums.ClientWarnMessageColors.Green, false)
+
+            -- Vent Weather
+            ExecuteWithDelay(3000, function()
+                ExecuteInGameThread(function()
+                    Utils.TriggerWeatherEvent("None")
+                end)
+            end)
+        end
+    end
+
     Utils.log("temp_power_meter: "..temp_power_meter)
     -- Check Night while here
     if temp_power_meter > 0 then
@@ -121,32 +155,22 @@ local function Handle_OnRep_LastKnownHour(context)
         local power_dice_roll = math.random()
         Utils.log(string.format("Temp Emergency Power Roll: %.2f < %.2f", power_dice_roll*100, Config.temp_power_restore_chance))
         if power_dice_roll < (Config.temp_power_restore_chance/100) then
+            next_day_has_power = true
+        end
 
-            -- Set Power Meter Level First
-            temp_power_meter = Config.temp_power_meter_max_hours
-
-            -- Vent Weather
-            Utils.TriggerWeatherEvent("None")
-
-            -- Msg 1
-            Utils.AllClientDisplayWarningMessage("Something rumbles deep below...", Enums.ClientWarnMessageColors.Purple, false)
-
-            -- Msg 2
-            msg = string.format(".. Facility Power Temporarily Roars Back to Life! (%d hours)", temp_power_meter)
-            Utils.AllClientDisplayWarningMessage(msg, Enums.ClientWarnMessageColors.Green, false)
-
-            -- Trigger Lights/Power On
-            dn_manager.IsNight = false
-            dn_manager:OnRep_IsNight()
-        elseif temp_power_meter <= 0 then
+        if temp_power_meter <= 0 then
             print("Selecting New Weather...")
             ExecuteWithDelay(1000, function()
-                Utils.TriggerWeatherEvent("None")
+                ExecuteInGameThread(function()
+                    Utils.TriggerWeatherEvent("None")
+                end)
             end)
             ExecuteWithDelay(4000, function()
-                local selected = math.random(1, #Config.weather_event_selection)
-                print(Config.weather_event_selection[selected])
-                Utils.TriggerWeatherEvent(Config.weather_event_selection[selected])
+                ExecuteInGameThread(function()
+                    local selected = math.random(1, #Config.weather_event_selection)
+                    print(Config.weather_event_selection[selected])
+                    Utils.TriggerWeatherEvent(Config.weather_event_selection[selected])
+                end)
             end)
         end
 
@@ -214,6 +238,10 @@ local function Handle_VentWeatherFXToAllPlayers(context)
         return
     end
 
+    if temp_power_meter > 0 then
+        return
+    end
+
     if LastWeatherInConfig() and Config.disable_fog_venting then
         ExecuteWithDelay(3000, function()
             local selected = math.random(1, #Config.weather_event_selection)
@@ -234,6 +262,11 @@ local function Handle_ClearActiveWeatherRequests(context)
 
     -- Store Current Weather Event Name
     dn_manager = Utils.GetDayNightManager()
+
+    if temp_power_meter > 0 then
+        return
+    end
+
     if Utils.IsValid(dn_manager) then
         last_weather_event = dn_manager.CurrentWeatherEvent:ToString()
         if last_weather_event == "RadLeak" and Config.disable_fog_venting then
@@ -414,6 +447,13 @@ if ToggleKey and ToggleKeyModifiers then
             Utils.AllClientDisplayWarningMessage(stateMessage, warningColor)
             
             dn_manager = Utils.GetDayNightManager()
+
+            Utils.log("dn_manager.LastKnownHour")
+            Utils.log(dn_manager.LastKnownHour)
+
+            
+            Utils.log("dn_manager.IsNight")
+            Utils.log(dn_manager.IsNight)
             -- print(dn_manager.IsNight)
             
             -- print("SecondsPerRealSecond_Day")
@@ -421,8 +461,8 @@ if ToggleKey and ToggleKeyModifiers then
             -- print("SecondsPerRealSecond_Night")
             -- print(dn_manager.SecondsPerRealSecond_Night)
 
-            -- dn_manager.SecondsPerRealSecond_Day   = 1000 -- Default: 30
-            -- dn_manager.SecondsPerRealSecond_Night = 1000 -- Default: 120
+            dn_manager.SecondsPerRealSecond_Day   = 1000 -- Default: 30
+            dn_manager.SecondsPerRealSecond_Night = 1000 -- Default: 120
 
             -- print("MorningStartHour")
             -- print(dn_manager.MorningStartHour)
@@ -432,12 +472,12 @@ if ToggleKey and ToggleKeyModifiers then
             -- print(dn_manager.NightfallStartHour)
             
 
-            temp_power_meter = 6
+            --temp_power_meter = 6
 
-            Utils.AllClientDisplayWarningMessage("Something rumbles deep below...", Enums.ClientWarnMessageColors.Green, false)
+            --Utils.AllClientDisplayWarningMessage("Something rumbles deep below...", Enums.ClientWarnMessageColors.Green, false)
             -- Trigger Lights/Power On
-            dn_manager.IsNight = false
-            dn_manager:OnRep_IsNight()
+            --dn_manager.IsNight = false
+            --dn_manager:OnRep_IsNight()
             
             --dn_manager:OnRep_CurrentDay()
             

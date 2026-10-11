@@ -79,7 +79,8 @@ end
 ---Debug Logging
 function Utils.log(message)
     if Config.Debug then
-        print(message.."\n")
+        print(message)
+        print("\n")
     end
 end
 
@@ -840,6 +841,22 @@ function Utils.LogCurrentTime()
     local seconds = dn_manager.CurrentTimeInSeconds - (hours*60*60) - (minutes*60)
     Utils.log(string.format("Time: %02d:%02d:%02d", hours,minutes,seconds))
 end
+
+
+-- Log Current In-Game Time
+function Utils.GetCurrentGameHour()
+    local dn_manager = Utils.GetDayNightManager()
+    if not Utils.IsValid(dn_manager) then
+        return
+    end
+    local total_seconds = dn_manager.CurrentTimeInSeconds
+    local hours = math.floor((total_seconds/60)/60)
+    local minutes = math.floor( (dn_manager.CurrentTimeInSeconds - (hours*60*60) ) / 60 )
+    local seconds = dn_manager.CurrentTimeInSeconds - (hours*60*60) - (minutes*60)
+    Utils.log(string.format("Time: %02d:%02d:%02d", hours,minutes,seconds))
+    return hours
+end
+
 
 
 ----

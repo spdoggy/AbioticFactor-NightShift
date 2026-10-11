@@ -29,6 +29,7 @@ local last_weather_event =  Config.fog_type
 local clock_tick = 0
 local hour_tick = 0
 local temp_power_meter = 0
+local mod_initialization = false
 
 Utils.log("Starting NightShift mod initialization")
 
@@ -56,9 +57,13 @@ local function set_night(dn_manager, night)
 
     -- Check for Night Time
     if not dn_manager.IsNight == night then
+
+        -- TODO: Investigate this more, might need to leave it in
+        -- so temporary day time can clear out Anomalies.
+
         -- Always Disable Night/Morning Start Hour
-        dn_manager.MorningStartHour = -1
-        dn_manager.NightfallStartHour = -1
+        --dn_manager.MorningStartHour = -1
+        dn_manager.NightfallStartHour = dn_manager.MorningStartHour + 1
 
         -- Setup the Night Time Tick Rate to Match Day Rate        
         dn_manager.SecondsPerRealSecond_Night = dn_manager.SecondsPerRealSecond_Day
@@ -197,7 +202,15 @@ local function Handle_InitializeTraits(context, Phd, FirstTime, Amnesia)
 end
 
 -- Function /Game/Blueprints/Environment/Systems/DayNightManager.DayNightManager_C:VentWeatherFXToAllPlayers
-local function Handle_VentWeatherFXToAllPlayers()    
+local function Handle_VentWeatherFXToAllPlayers(context)
+
+    local dn_manager = context:Get()
+    if Utils.IsValid(dn_manager) then
+        Utils.CacheDayNightManager()
+    else
+        return
+    end
+
     if LastWeatherInConfig() and Config.disable_fog_venting then
         ExecuteWithDelay(3000, function()
             local selected = math.random(1, #Config.weather_event_selection)
@@ -209,18 +222,60 @@ end
 
 local function Handle_ClearActiveWeatherRequests(context)
 
+    local dn_manager = context:Get()
+    if Utils.IsValid(dn_manager) then
+        Utils.CacheDayNightManager()
+    else
+        return
+    end
+
     -- Store Current Weather Event Name
     dn_manager = Utils.GetDayNightManager()
     if Utils.IsValid(dn_manager) then
         last_weather_event = dn_manager.CurrentWeatherEvent:ToString()
         if last_weather_event == "RadLeak" and Config.disable_fog_venting then
-            ExecuteWithDelay(2000, function()
+            print("Selecting New Weather...")
+            ExecuteWithDelay(1000, function()
+                Utils.TriggerWeatherEvent("None")
+            end)
+            ExecuteWithDelay(4000, function()
                 local selected = math.random(1, #Config.weather_event_selection)
+                print(Config.weather_event_selection[selected])
                 Utils.TriggerWeatherEvent(Config.weather_event_selection[selected])
             end)
         end
     end
 end
+
+local function Handle_ReceiveBeginPlay(context)
+
+    local gameState = context:get()
+    if not gameState:IsValid() then return end
+
+    local world = gameState:GetWorld()
+    if world and world:IsValid() then
+        Utils.WorldCache(world)
+        mod_initialization = true
+
+        -- Initialize to Night
+        ExecuteWithDelay(10000, function()
+            set_night(dn_manager, true)
+            dn_manager.IsNight = true
+            dn_manager:OnRep_IsNight()
+        end)
+
+        -- Starting Weather Event
+        ExecuteWithDelay(20000, function()
+            ExecuteInGameThread(function()
+                local selected = math.random(1, #Config.weather_event_selection)
+                Utils.TriggerWeatherEvent(Config.weather_event_selection[selected])
+            end)
+        end)
+
+    end
+
+end
+
 
 -- Hook Setup
 ExecuteInGameThread(function()
@@ -290,18 +345,30 @@ ExecuteInGameThread(function()
         end
     end)
 
-    NotifyOnNewObject("/Game/Blueprints/Environment/Systems/DayNightManager.DayNightManager_C", function(dn_manager)
-        Utils.CacheDayNightManager(dn_manager)    
-        set_night(dn_manager, true)
-        dn_manager.IsNight = true
-        dn_manager:OnRep_IsNight()
-        -- Starting Weather Event
-        ExecuteWithDelay(20000, function()
-            local selected = math.random(1, #Config.weather_event_selection)
-            Utils.TriggerWeatherEvent(Config.weather_event_selection[selected])
-        end)
-    
+    -- /Game/Blueprints/Meta/Abiotic_Survival_GameState.Abiotic_Survival_GameState_C:ReceiveBeginPlay
+    ExecuteWithDelay(2500, function()
+    local okHook, errHook = pcall(RegisterHook,
+        "/Game/Blueprints/Meta/Abiotic_Survival_GameState.Abiotic_Survival_GameState_C:ReceiveBeginPlay",
+        Handle_ReceiveBeginPlay
+    )
+        if not okHook then
+            print("NightShift Hook registration failed: %s", tostring(errHook))
+        else
+            print("NightShift Hook registration success: ReceiveBeginPlay")
+        end
     end)
+
+    NotifyOnNewObject("/Game/Blueprints/Environment/Systems/DayNightManager.DayNightManager_C", function(dn_manager)
+        Utils.log("NotifyOnNewObject: DayNightManager_C")
+        Utils.CacheDayNightManager(dn_manager)
+    end)
+
+    NotifyOnNewObject("/Script/AbioticFactor.Default__WeatherEventHandleFunctionLibrary", function(w_event_lib)
+        Utils.log("CacheWeatherEventLib")
+        Utils.CacheWeatherEventLib(w_event_lib)
+    end)
+
+    
 
     Utils.log("NightShift Hooks initialized")
 end)
@@ -335,7 +402,7 @@ if ToggleKey and ToggleKeyModifiers then
             print("SecondsPerRealSecond_Night")
             print(dn_manager.SecondsPerRealSecond_Night)
 
-            dn_manager.SecondsPerRealSecond_Day   = 1000 -- Defwult: 30
+            dn_manager.SecondsPerRealSecond_Day   = 1000 -- Default: 30
             dn_manager.SecondsPerRealSecond_Night = 1000 -- Default: 120
 
             print("MorningStartHour")

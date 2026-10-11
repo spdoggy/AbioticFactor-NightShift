@@ -5,17 +5,13 @@ return {
 
     -- [General Config] ===================================
     disable_fog_venting = true,
-    hours_per_weather_event = 25,
+    hours_per_weather_event = 28,
     player_starts_with_trinket = true,
     player_starts_with_lantern = true,
 
-    -- Default Seconds Per night, set higher to make time pass quicker
-    -- Default: 120
-    SecondsPerRealSecond_Night = 30,
-
     -- [Facility Temporary Emergency Power]
     -- Chance for Temporary Facility Emergency Power Restoration
-    temp_power_restore_chance = 90,
+    temp_power_restore_chance = 10,
     temp_power_meter_max_hours = 3,
 
     -- [Player Starting Kit] ==============================

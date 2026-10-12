@@ -2,8 +2,10 @@ return {
     -- [Debug] ============================================
     -- Enable debug log.
     Debug = true,
+    transition_debug = false,
 
     -- [General Config] ===================================
+    foggy_weather_enabled = true,
     disable_fog_venting = true,
     hours_per_weather_event = 30,
     player_starts_with_trinket = true,

@@ -46,7 +46,7 @@ end
 --- Set to Night Time
 ---@param dn_manager ADayNightManager_C
 ---@param night boolean
-local function set_night(dn_manager, night)
+local function set_night(dn_manager)
 
     if temp_power_meter > 0 then
         return
@@ -57,13 +57,7 @@ local function set_night(dn_manager, night)
     end
 
     -- Check for Night Time
-    if not dn_manager.IsNight == night then
-
-        -- [TODO]: Investigate this more, might need to leave it in
-        -- so the temporary day time can clear out Anomalies.
-        -- Anomalies started to overflow during initial dedicated server tests
-        dn_manager.MorningStartHour = 6
-        dn_manager.NightfallStartHour = 7
+    if not dn_manager.IsNight then
 
         -- Setup the Night Time Tick Rate to Match Day Rate        
         dn_manager.SecondsPerRealSecond_Night = dn_manager.SecondsPerRealSecond_Day
@@ -72,25 +66,11 @@ local function set_night(dn_manager, night)
         Utils.log("[Handle_OnRep_LastKnownHour]: Detected IsNight = %s")
         Utils.log(dn_manager.IsNight )
         ExecuteWithDelay(1000, function()
-            dn_manager.IsNight = night
+            dn_manager.IsNight = true
         end)
         ExecuteWithDelay(1500, function()
-            dn_manager:OnRep_IsNight()
+            --dn_manager:OnRep_IsNight()
         end)
-    end
-end
-
-local function Handle_OnRep_IsNight(context)
-    local dn_manager = context:get()
-    if Utils.IsValid(dn_manager) then
-        Utils.CacheDayNightManager(dn_manager)
-    else
-        print("Error: Could Not get Context at Handle_OnRep_IsNight")
-        dn_manager = Utils.GetDayNightManager()
-        -- [TODO]: I do not believe this is needed
-        -- if temp_power_meter <= 0 then
-        --     dn_manager.IsNight = true
-        -- end
     end
 end
 
@@ -108,18 +88,39 @@ local function Handle_OnRep_LastKnownHour(context)
 
     Utils.log("dn_manager.LastKnownHour")
     Utils.log(dn_manager.LastKnownHour)
+    hour_tick = hour_tick + 1
+
+    -- Transition Required to Clear Anomalies
+    dn_manager.MorningStartHour = 6
+    dn_manager.NightfallStartHour = 7
+
+    -- Debug
+    if Config.transition_debug then
+        if (dn_manager.LastKnownHour+0) < 5 then
+            dn_manager.SecondsPerRealSecond_Day   = 2000 -- Default: 30
+            dn_manager.SecondsPerRealSecond_Night = 2000 -- Default: 120
+        elseif (dn_manager.LastKnownHour+0) > 7 then
+            dn_manager.SecondsPerRealSecond_Day   = 2000 -- Default: 30
+            dn_manager.SecondsPerRealSecond_Night = 2000 -- Default: 120
+        else
+            dn_manager.SecondsPerRealSecond_Day   = 120 -- Default: 30
+            dn_manager.SecondsPerRealSecond_Night = 120 -- Default: 120
+        end
+    end
 
     if next_day_has_power then
-        
+
         -- Prepare for Power Restore Next Hour
         if dn_manager.LastKnownHour == 5 then
             Utils.log("Next Day has Power: Now=5am")
             dn_manager.MorningStartHour = 6
             temp_power_meter = Config.temp_power_meter_max_hours
             dn_manager.NightfallStartHour = dn_manager.MorningStartHour + temp_power_meter
-
+            if dn_manager.NightfallStartHour > 23 then
+                dn_manager.NightfallStartHour = 23
+            end
+            next_day_has_power = false
         end
-
         -- Trigger Morning Now at 6am
         if dn_manager.LastKnownHour == 6 then
 
@@ -131,10 +132,24 @@ local function Handle_OnRep_LastKnownHour(context)
             Utils.AllClientDisplayWarningMessage(msg, Enums.ClientWarnMessageColors.Green, false)
 
             -- Vent Weather
-            ExecuteWithDelay(3000, function()
-                ExecuteInGameThread(function()
-                    Utils.TriggerWeatherEvent("None")
+            if Config.foggy_weather_enabled then
+                ExecuteWithDelay(3000, function()
+                    ExecuteInGameThread(function()
+                        Utils.TriggerWeatherEvent("None")
+                    end)
                 end)
+            end
+        end
+    else
+        -- Set back to Night After Clearing Anomalies
+        if dn_manager.LastKnownHour == 6 then
+            dn_manager.MorningStartHour = -1
+            dn_manager.NightfallStartHour = 7
+            dn_manager.IsNight = true
+            dn_manager.OnRep_IsNight()
+            ExecuteWithDelay(10000, function()
+                dn_manager.IsNight = true
+                dn_manager.OnRep_IsNight()
             end)
         end
     end
@@ -143,13 +158,12 @@ local function Handle_OnRep_LastKnownHour(context)
     -- Check Night while here
     if temp_power_meter > 0 then
         temp_power_meter = temp_power_meter - 1
-        set_night(dn_manager, false)
+        dn_manager.IsNight = false
     else
-        set_night(dn_manager, true)
+        set_night(dn_manager)
     end
-    
 
-    hour_tick = hour_tick + 1
+    
     if hour_tick % (Config.hours_per_weather_event) == 0 then
 
         local power_dice_roll = math.random()
@@ -159,19 +173,21 @@ local function Handle_OnRep_LastKnownHour(context)
         end
 
         if temp_power_meter <= 0 then
-            print("Selecting New Weather...")
-            ExecuteWithDelay(1000, function()
-                ExecuteInGameThread(function()
-                    Utils.TriggerWeatherEvent("None")
+            if Config.foggy_weather_enabled then
+                print("Selecting New Weather...")
+                ExecuteWithDelay(1000, function()
+                    ExecuteInGameThread(function()
+                        Utils.TriggerWeatherEvent("None")
+                    end)
                 end)
-            end)
-            ExecuteWithDelay(4000, function()
-                ExecuteInGameThread(function()
-                    local selected = math.random(1, #Config.weather_event_selection)
-                    print(Config.weather_event_selection[selected])
-                    Utils.TriggerWeatherEvent(Config.weather_event_selection[selected])
+                ExecuteWithDelay(4000, function()
+                    ExecuteInGameThread(function()
+                        local selected = math.random(1, #Config.weather_event_selection)
+                        print(Config.weather_event_selection[selected])
+                        Utils.TriggerWeatherEvent(Config.weather_event_selection[selected])
+                    end)
                 end)
-            end)
+            end
         end
 
 
@@ -267,18 +283,20 @@ local function Handle_ClearActiveWeatherRequests(context)
         return
     end
 
-    if Utils.IsValid(dn_manager) then
-        last_weather_event = dn_manager.CurrentWeatherEvent:ToString()
-        if last_weather_event == "RadLeak" and Config.disable_fog_venting then
-            print("Selecting New Weather...")
-            ExecuteWithDelay(1000, function()
-                Utils.TriggerWeatherEvent("None")
-            end)
-            ExecuteWithDelay(4000, function()
-                local selected = math.random(1, #Config.weather_event_selection)
-                print(Config.weather_event_selection[selected])
-                Utils.TriggerWeatherEvent(Config.weather_event_selection[selected])
-            end)
+    if Config.foggy_weather_enabled then
+        if Utils.IsValid(dn_manager) then
+            last_weather_event = dn_manager.CurrentWeatherEvent:ToString()
+            if last_weather_event == "RadLeak" and Config.disable_fog_venting then
+                print("Selecting New Weather...")
+                ExecuteWithDelay(1000, function()
+                    Utils.TriggerWeatherEvent("None")
+                end)
+                ExecuteWithDelay(4000, function()
+                    local selected = math.random(1, #Config.weather_event_selection)
+                    print(Config.weather_event_selection[selected])
+                    Utils.TriggerWeatherEvent(Config.weather_event_selection[selected])
+                end)
+            end
         end
     end
 end
@@ -305,18 +323,6 @@ end
 -- Hook Setup
 ExecuteInGameThread(function()
     Utils.log("Initializing NightShift hooks")
-
-    ExecuteWithDelay(2500, function()
-    local okHook, errHook = pcall(RegisterHook,
-        "/Game/Blueprints/Environment/Systems/DayNightManager.DayNightManager_C:OnRep_IsNight",
-        Handle_OnRep_IsNight
-    )
-        if not okHook then
-            print("NightShift Hook registration failed: %s", tostring(errHook))
-        else
-            print("NightShift Hook registration success: Handle_OnRep_IsNight")
-        end
-    end)
 
     --/Game/Blueprints/Characters/Abiotic_CharacterProgressionComponent.Abiotic_CharacterProgressionComponent_C:InitializeTraits
     ExecuteWithDelay(2500, function()
@@ -400,19 +406,20 @@ ExecuteInGameThread(function()
         -- Don't try to set the first weather event here though, handle that during ReceiveBeginPlay
         -- instead to prevent Cleanup/GarbageCollection issues.
         ExecuteWithDelay(2500, function()
-            set_night(dn_manager, true)
+            set_night(dn_manager)
             dn_manager.IsNight = true
             dn_manager:OnRep_IsNight()
         end)
 
-        -- Starting Weather Event
-        ExecuteWithDelay(20000, function()
-            ExecuteInGameThread(function()
-                local selected = math.random(1, #Config.weather_event_selection)
-                Utils.TriggerWeatherEvent(Config.weather_event_selection[selected])
+        if Config.foggy_weather_enabled then
+            -- Starting Weather Event
+            ExecuteWithDelay(20000, function()
+                ExecuteInGameThread(function()
+                    local selected = math.random(1, #Config.weather_event_selection)
+                    Utils.TriggerWeatherEvent(Config.weather_event_selection[selected])
+                end)
             end)
-        end)
-
+        end
     end)
 
     NotifyOnNewObject("/Script/AbioticFactor.Default__WeatherEventHandleFunctionLibrary", function(w_event_lib)
@@ -461,9 +468,21 @@ if ToggleKey and ToggleKeyModifiers then
             -- print("SecondsPerRealSecond_Night")
             -- print(dn_manager.SecondsPerRealSecond_Night)
 
-            dn_manager.SecondsPerRealSecond_Day   = 1000 -- Default: 30
-            dn_manager.SecondsPerRealSecond_Night = 1000 -- Default: 120
+            dn_manager.SecondsPerRealSecond_Day   = 500 -- Default: 30
+            dn_manager.SecondsPerRealSecond_Night = 500 -- Default: 120
 
+            local data_table = "/Game/Blueprints/Items/ItemTable_FoodAndGibs.ItemTable_FoodAndGibs"
+            local data_cat = "FoodAndGibs"
+            local item_id = "food_cosmatosalad"
+            local player = Utils.GetPlayerFromName("SpDoggy")
+            local player_name = "SpDoggy"
+            Utils.GiveItemToTarget(player, player_name, item_id, data_table, data_cat, 3)
+
+            local item_id = "Coffee"
+            Utils.GiveItemToTarget(player, player_name, item_id, data_table, data_cat, 5)
+
+            
+            
             -- print("MorningStartHour")
             -- print(dn_manager.MorningStartHour)
             -- dn_manager.MorningStartHour = -1
@@ -478,13 +497,7 @@ if ToggleKey and ToggleKeyModifiers then
             -- Trigger Lights/Power On
             --dn_manager.IsNight = false
             --dn_manager:OnRep_IsNight()
-            
             --dn_manager:OnRep_CurrentDay()
-            
-
-            
-            
-
         end)
     end
     

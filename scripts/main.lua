@@ -59,9 +59,6 @@ local function set_night(dn_manager)
     -- Check for Night Time
     if not dn_manager.IsNight then
 
-        -- Setup the Night Time Tick Rate to Match Day Rate        
-        dn_manager.SecondsPerRealSecond_Night = dn_manager.SecondsPerRealSecond_Day
-
         -- Check for NightTime
         Utils.log("[Handle_OnRep_LastKnownHour]: Detected IsNight = %s")
         Utils.log(dn_manager.IsNight )
@@ -90,9 +87,8 @@ local function Handle_OnRep_LastKnownHour(context)
     Utils.log(dn_manager.LastKnownHour)
     hour_tick = hour_tick + 1
 
-    -- Transition Required to Clear Anomalies
-    dn_manager.MorningStartHour = 6
-    dn_manager.NightfallStartHour = 7
+    -- Setup the Night Time Tick Rate to Match Day Rate        
+    dn_manager.SecondsPerRealSecond_Night = dn_manager.SecondsPerRealSecond_Day
 
     -- Debug
     if Config.transition_debug then
@@ -141,16 +137,30 @@ local function Handle_OnRep_LastKnownHour(context)
             end
         end
     else
-        -- Set back to Night After Clearing Anomalies
-        if dn_manager.LastKnownHour == 6 then
+        -- Set back to Night After Clearing Anomalies Should be no 
+        -- announcements played with this method, i.e when processed
+        -- in the same within the same Handle_OnRep_LastKnownHour call
+        -- Security Robots may reset from patrol, however they should
+        -- resume normal cycles next day or during loading zones
+        if dn_manager.LastKnownHour == 5 then
+            -- Transition Required to Clear Anomalies
+            dn_manager.MorningStartHour = 6
+            dn_manager.NightfallStartHour = 7
+        elseif dn_manager.LastKnownHour == 6 then
             dn_manager.MorningStartHour = -1
             dn_manager.NightfallStartHour = 7
-            dn_manager.IsNight = true
-            dn_manager.OnRep_IsNight()
+
+            -- Note: A player could get chopped by the Cafeteria Ventilation
+            -- between approx 6:40 and 7:00 am in some cases
             ExecuteWithDelay(10000, function()
                 dn_manager.IsNight = true
                 dn_manager.OnRep_IsNight()
             end)
+        else
+            dn_manager.MorningStartHour = -1
+            dn_manager.NightfallStartHour = -1
+            dn_manager.IsNight = true
+            dn_manager.OnRep_IsNight()
         end
     end
 
@@ -163,7 +173,7 @@ local function Handle_OnRep_LastKnownHour(context)
         set_night(dn_manager)
     end
 
-    
+    -- Process the Weather Events Next
     if hour_tick % (Config.hours_per_weather_event) == 0 then
 
         local power_dice_roll = math.random()
@@ -189,11 +199,7 @@ local function Handle_OnRep_LastKnownHour(context)
                 end)
             end
         end
-
-
     end
-
-
 end
 
 -- Handle New Player Joining Equipment
@@ -417,6 +423,12 @@ ExecuteInGameThread(function()
                 ExecuteInGameThread(function()
                     local selected = math.random(1, #Config.weather_event_selection)
                     Utils.TriggerWeatherEvent(Config.weather_event_selection[selected])
+                end)
+            end)
+        else
+            ExecuteWithDelay(20000, function()
+                ExecuteInGameThread(function()
+                    Utils.TriggerWeatherEvent("None")
                 end)
             end)
         end

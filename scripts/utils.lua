@@ -230,11 +230,44 @@ function Utils.GetPlayerStateFromID(player_id)
     return CreateInvalidObject() ---@type AAbiotic_PlayerState_C
 end
 
+---Find a PlayerState object by the player_name
+---@param player_name string|FString
+---@return AAbiotic_PlayerState_C
+function Utils.GetPlayerStateFromName(player_name)
+    if type(player_name) == "string" and player_name ~= "" then
+        if Utils.IsValid(TheWorld) then
+            local gameState = TheWorld.GameState ---@type AGameStateBase
+            if Utils.IsValid(gameState) and gameState.PlayerArray then
+                for i = 1, #gameState.PlayerArray do
+                    local playerState = gameState.PlayerArray[i] ---@cast playerState AAbiotic_PlayerState_C
+                    local playerName = playerState:GetPlayerName():ToString() ---@type string
+                    if playerName == player_name then
+                        return playerState
+                    end
+                end
+            end
+        end
+    end
+    return CreateInvalidObject() ---@type AAbiotic_PlayerState_C
+end
+
 ---Find a player by the player_id
 ---@param player_id FString|string
 ---@return AAbiotic_PlayerCharacter_C
 function Utils.GetPlayerFromId(player_id)
     local playerState = Utils.GetPlayerStateFromID(player_id)
+    if Utils.IsValid(playerState) and playerState.PawnPrivate then
+        return playerState.PawnPrivate ---@type AAbiotic_PlayerCharacter_C
+    end
+    return CreateInvalidObject() ---@type AAbiotic_PlayerCharacter_C
+end
+
+
+---Find a player by the player name
+---@param player_id FString|string
+---@return AAbiotic_PlayerCharacter_C
+function Utils.GetPlayerFromName(player_name)
+    local playerState = Utils.GetPlayerStateFromName(player_name)
     if Utils.IsValid(playerState) and playerState.PawnPrivate then
         return playerState.PawnPrivate ---@type AAbiotic_PlayerCharacter_C
     end

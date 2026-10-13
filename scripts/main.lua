@@ -90,7 +90,7 @@ local function Handle_OnRep_LastKnownHour(context)
     -- Setup the Night Time Tick Rate to Match Day Rate        
     dn_manager.SecondsPerRealSecond_Night = dn_manager.SecondsPerRealSecond_Day
 
-    -- Debug
+    -- Debug Only
     if Config.transition_debug then
         if (dn_manager.LastKnownHour+0) < 5 then
             dn_manager.SecondsPerRealSecond_Day   = 2000 -- Default: 30
@@ -104,6 +104,7 @@ local function Handle_OnRep_LastKnownHour(context)
         end
     end
 
+    -- If Power Event
     if next_day_has_power then
 
         -- Prepare for Power Restore Next Hour

@@ -7,6 +7,7 @@ return {
     -- [General Config] ===================================
     foggy_weather_enabled = true,
     disable_fog_venting = true,
+    warn_on_portal_reset = true,
     hours_per_weather_event = 30,
     player_starts_with_trinket = true,
     player_starts_with_lantern = true,

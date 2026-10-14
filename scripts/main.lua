@@ -201,6 +201,15 @@ local function Handle_OnRep_LastKnownHour(context)
             end
         end
     end
+
+    -- Simple Portal Reset Warning
+    if Config.warn_on_portal_reset then
+        if Utils.IsPortalResetEve() then
+            if Utils.GetCurrentGameHour() == 20 then
+                Utils.AllClientDisplayWarningMessage("Portal Reset ETA: 4 Hours", Enums.ClientWarnMessageColors.Yellow, true)
+            end
+        end
+    end
 end
 
 -- Handle New Player Joining Equipment
@@ -457,7 +466,7 @@ if ToggleKey and ToggleKeyModifiers then
                 state = "Enabled"
                 warningColor =  Enums.ClientWarnMessageColors.Green
                 Config.disable_fog_venting = true
-                --Utils.TriggerWeatherEvent("Fog")
+                Utils.TriggerWeatherEvent("Fog")
             else
                 Config.disable_fog_venting = false
                 Utils.TriggerWeatherEvent("None")
@@ -465,52 +474,7 @@ if ToggleKey and ToggleKeyModifiers then
             local stateMessage = "NightShift: Fog:" .. state
             Utils.log(stateMessage)
             Utils.AllClientDisplayWarningMessage(stateMessage, warningColor)
-            
-            dn_manager = Utils.GetDayNightManager()
 
-            Utils.log("dn_manager.LastKnownHour")
-            Utils.log(dn_manager.LastKnownHour)
-
-            
-            Utils.log("dn_manager.IsNight")
-            Utils.log(dn_manager.IsNight)
-            -- print(dn_manager.IsNight)
-            
-            -- print("SecondsPerRealSecond_Day")
-            -- print(dn_manager.SecondsPerRealSecond_Day)
-            -- print("SecondsPerRealSecond_Night")
-            -- print(dn_manager.SecondsPerRealSecond_Night)
-
-            dn_manager.SecondsPerRealSecond_Day   = 500 -- Default: 30
-            dn_manager.SecondsPerRealSecond_Night = 500 -- Default: 120
-
-            local data_table = "/Game/Blueprints/Items/ItemTable_FoodAndGibs.ItemTable_FoodAndGibs"
-            local data_cat = "FoodAndGibs"
-            local item_id = "food_cosmatosalad"
-            local player = Utils.GetPlayerFromName("SpDoggy")
-            local player_name = "SpDoggy"
-            Utils.GiveItemToTarget(player, player_name, item_id, data_table, data_cat, 3)
-
-            local item_id = "Coffee"
-            Utils.GiveItemToTarget(player, player_name, item_id, data_table, data_cat, 5)
-
-            
-            
-            -- print("MorningStartHour")
-            -- print(dn_manager.MorningStartHour)
-            -- dn_manager.MorningStartHour = -1
-
-            -- print("NightfallStartHour")
-            -- print(dn_manager.NightfallStartHour)
-            
-
-            --temp_power_meter = 6
-
-            --Utils.AllClientDisplayWarningMessage("Something rumbles deep below...", Enums.ClientWarnMessageColors.Green, false)
-            -- Trigger Lights/Power On
-            --dn_manager.IsNight = false
-            --dn_manager:OnRep_IsNight()
-            --dn_manager:OnRep_CurrentDay()
         end)
     end
     

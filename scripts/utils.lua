@@ -877,6 +877,7 @@ end
 
 
 -- Log Current In-Game Time
+---@return number
 function Utils.GetCurrentGameHour()
     local dn_manager = Utils.GetDayNightManager()
     if not Utils.IsValid(dn_manager) then
@@ -890,7 +891,40 @@ function Utils.GetCurrentGameHour()
     return hours
 end
 
+-- Is tomorrow a portal reset day?
+---@return boolean
+function Utils.IsPortalResetEve()
+    local dn_manager = Utils.GetDayNightManager()
+    if not Utils.IsValid(dn_manager) then
+        return false
+    end
+    -- enum class EDayOfTheWeek {
+    --     Monday = 0,
+    --     Tuesday = 1,
+    --     Wednesday = 2,
+    --     Thursday = 3,
+    --     Friday = 4,
+    --     Saturday = 5,
+    --     Sunday = 6,
+    --     EDayOfTheWeek_MAX = 7,
+    -- };
+    local day_index = (dn_manager.CurrentDay % 7)
+    local found = false
+    dn_manager.PortalResetDays:ForEach(function(element)
+        local value = element:get()
+    
+        -- break if true
+        if (day_index + 1) == value  then
 
+            found = true
+            return true
+        end
+    end)
+    if found then
+        return true
+    end
+    return false
+end
 
 ----
 

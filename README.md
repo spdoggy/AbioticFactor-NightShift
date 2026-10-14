@@ -39,5 +39,17 @@ Linux example:
 `/home/sp/.steam/debian-installation/steamapps/common/AbioticFactor/AbioticFactor/Binaries/Win64/ue4ss/Mods\NightShift`
 
 
+# Additional Notes
+
+## Using a Field Battery
+1. If you're having trouble with the field battery, try moving it around first in your inventory, then right-click/ use your secondary interact controller button on the MakeShift Battery to recharge it.
+
+
+## Charging Batteries on the facility Gate Charging Stations
+2. To charge a battery (MakeShift or later variants) you can use the Gate Charging Station in the lobby and those scattered around the Facility. With a packaged and depleted battery in your inventory, long-press the primary interact button to bring up a radial menu and then select the depleted battery.  Problem: 
+
+    Sometimes the game thinks you already have an item on the charger or it doesn't want to open the menu. Usually if you are persistent in re-trying the primary interact key or try swapping items it eventually will open the radial menu and show the battery, but I'm not sure why this happens, even in non-modded gameplay. 
+
+
 # Source
 https://github.com/spdoggy/AbioticFactor-NightShift

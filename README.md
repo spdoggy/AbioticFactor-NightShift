@@ -14,8 +14,10 @@ Unfortunately for the scientists in a facility with this mod, the power almost n
 - Overhead Lights are off in most areas 
 - Players will start with an emergency kit of the following: MakeshiftBattery, FieldBattery, Lantern, and a LightTrinket (configurable)
 - Sleeping will (generally) pass time very quickly
-- Time passes quicker at night time, it is recommended to set the Sandbox setting Day Night Cycle Speed (DayNightCycleSpeedMultiplier in SandboxSettings.ini) to less than 1.0, try starting with 0.8 or 0.7 and see if that is acceptable.
+- The mod now automatically updates the night-time clock speed to match the day time speed. 
 - Most Night-time features will be more active
+- A simple warning for Portal Resets (configurable)
+- There is a 10% chance for emergency power to kick on and clear the fog (configurable)
 
 
 # Installation instructions
@@ -36,8 +38,6 @@ Dedicated Server:
 Linux example:
 `/home/sp/.steam/debian-installation/steamapps/common/AbioticFactor/AbioticFactor/Binaries/Win64/ue4ss/Mods\NightShift`
 
-
-Time passes quicker at night time, it is recommended to set the Sandbox setting Day Night Cycle Speed (DayNightCycleSpeedMultiplier in SandboxSettings.ini) to less than 1.0, try starting with 0.8 or 0.7 and see if that is acceptable.
 
 # Source
 https://github.com/spdoggy/AbioticFactor-NightShift

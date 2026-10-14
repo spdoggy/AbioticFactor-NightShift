@@ -8,7 +8,7 @@ return {
     foggy_weather_enabled = true,
     disable_fog_venting = true,
     warn_on_portal_reset = true,
-    hours_per_weather_event = 30,
+    hours_per_weather_event = 25,
     player_starts_with_trinket = true,
     player_starts_with_lantern = true,
 
@@ -22,7 +22,7 @@ return {
     -- https://docs.google.com/spreadsheets/d/1IA3mMS6LnLzyneEEeh2-52-RhgqjlTjj5Nno1RPF56c/edit?gid=908652592#gid=908652592
     -- Or use the ItemSpawner mod ( https://www.nexusmods.com/abioticfactor/mods/175 ) to search for item_ids
     -- [TODO]: Add an item_id exporter for the mod and include a text file example
-    enable_custom_emergency_starter_kit = true,
+    enable_custom_emergency_starter_kit = false,
     custom_emergency_starter_kit = {
         {cat = "Craftables", item_id = "net",          qty = 10, table = "/Game/Blueprints/Items/ItemTable_Craftables.ItemTable_Craftables"},
         {cat = "Weapons",    item_id = "net_launcher", qty =  1, table = "/Game/Blueprints/Items/ItemTable_Weapons.ItemTable_Weapons"},

@@ -10,8 +10,8 @@ Unfortunately for the scientists in a facility with this mod, the power almost n
 - The Fog Venting Button in Silo 3 will not work, the fog will re-appear in a few seconds.
 - There is a 1 in 5 chance to get the Security Sector Black Fog weather event instead of regular Fog (configurable)
 - The RadLeak Weather Event will change to Fog instead
-- Facility Power Outlets are disabled, players must charge batteries with the facility built-in Security Charging Stations
-- Overhead Lights are off in most areas 
+- Facility Power Outlets are disabled, players must charge batteries with the facility built-in Security Charging Stations (configurable, can be overridden in Sandboxsettings.ini)
+- Overhead Lights are off in most areas
 - Players will start with an emergency kit of the following: MakeshiftBattery, FieldBattery, Lantern, and a LightTrinket (configurable)
 - Sleeping will (generally) pass time very quickly
 - The mod now automatically updates the night-time clock speed to match the day time speed. 
@@ -38,6 +38,7 @@ Dedicated Server:
 Linux example:
 `/home/sp/.steam/debian-installation/steamapps/common/AbioticFactor/AbioticFactor/Binaries/Win64/ue4ss/Mods\NightShift`
 
+See the file, 'NightShift/config.lua', for the mod's configurable options.
 
 # Additional Notes
 

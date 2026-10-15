@@ -56,6 +56,11 @@ local function set_night(dn_manager)
         return
     end
 
+    -- Exit if feature is disabled
+    if not Config.facility_power_off_always_night then
+        return
+    end
+
     -- Check for Night Time
     if not dn_manager.IsNight then
 
@@ -119,14 +124,19 @@ local function Handle_OnRep_LastKnownHour(context)
             next_day_has_power = false
         end
         -- Trigger Morning Now at 6am
-        if dn_manager.LastKnownHour == 6 then
+        if dn_manager.LastKnownHour == 6 and (Config.facility_power_off_always_night or Config.foggy_weather_enabled) then
 
             -- Msg 1
             Utils.AllClientDisplayWarningMessage("Something rumbles deep below...", Enums.ClientWarnMessageColors.Purple, false)
 
             -- Msg 2
-            local msg = string.format(".. Facility Power Temporarily Roars Back to Life! (%d hours)", temp_power_meter)
-            Utils.AllClientDisplayWarningMessage(msg, Enums.ClientWarnMessageColors.Green, false)
+            if Config.facility_power_off_always_night then
+                local msg = string.format(".. Facility Power Temporarily Roars Back to Life! (%d hours)", temp_power_meter)
+                Utils.AllClientDisplayWarningMessage(msg, Enums.ClientWarnMessageColors.Green, false)
+            elseif Config.foggy_weather_enabled then
+                local msg = string.format(".. The Facility Power Ventilation System Roars Back to Life! (%d hours)", temp_power_meter)
+                Utils.AllClientDisplayWarningMessage(msg, Enums.ClientWarnMessageColors.Green, false)
+            end
 
             -- Vent Weather
             if Config.foggy_weather_enabled then
@@ -137,7 +147,8 @@ local function Handle_OnRep_LastKnownHour(context)
                 end)
             end
         end
-    else
+
+    elseif Config.facility_power_off_always_night then
         -- Set back to Night After Clearing Anomalies Should be no 
         -- announcements played with this method, i.e when processed
         -- in the same within the same Handle_OnRep_LastKnownHour call
@@ -151,7 +162,7 @@ local function Handle_OnRep_LastKnownHour(context)
             dn_manager.MorningStartHour = -1
             dn_manager.NightfallStartHour = 7
 
-            -- Note: A player could get chopped by the Cafeteria Ventilation
+            -- [TODO]: A player could get chopped by the Cafeteria Ventilation
             -- between approx 6:40 and 7:00 am in some cases
             ExecuteWithDelay(10000, function()
                 dn_manager.IsNight = true
@@ -169,8 +180,10 @@ local function Handle_OnRep_LastKnownHour(context)
     -- Check Night while here
     if temp_power_meter > 0 then
         temp_power_meter = temp_power_meter - 1
-        dn_manager.IsNight = false
-    else
+        if Config.facility_power_off_always_night then
+            dn_manager.IsNight = false
+        end
+    elseif Config.facility_power_off_always_night then
         set_night(dn_manager)
     end
 
@@ -179,7 +192,7 @@ local function Handle_OnRep_LastKnownHour(context)
 
         local power_dice_roll = math.random()
         Utils.log(string.format("Temp Emergency Power Roll: %.2f < %.2f", power_dice_roll*100, Config.temp_power_restore_chance))
-        if power_dice_roll < (Config.temp_power_restore_chance/100) then
+        if power_dice_roll < (Config.temp_power_restore_chance/100) and Config.facility_power_off_always_night then
             next_day_has_power = true
         end
 
@@ -208,6 +221,9 @@ local function Handle_OnRep_LastKnownHour(context)
             if Utils.GetCurrentGameHour() == 20 then
                 Utils.AllClientDisplayWarningMessage("Portal Reset ETA: 4 Hours", Enums.ClientWarnMessageColors.Yellow, true)
             end
+            if Utils.GetCurrentGameHour() == 23 then
+                Utils.AllClientDisplayWarningMessage("Portal Reset ETA: 1 Hour!", Enums.ClientWarnMessageColors.Red, true)
+            end
         end
     end
 end
@@ -228,7 +244,7 @@ local function Handle_InitializeTraits(context, Phd, FirstTime, Amnesia)
     -- Give Starting Kit
     local TheWorld = Utils.GetWorld()
     if Utils.IsValid(TheWorld) then
-        
+
         if first_time then
             local data_table = "/Game/Blueprints/Items/ItemTable_Craftables.ItemTable_Craftables"
             local data_cat = "Craftables"
@@ -328,9 +344,11 @@ local function Handle_ReceiveBeginPlay(context)
         mod_initialization = true
 
         -- Re-Initialize to Night
-        dn_manager = Utils.GetDayNightManager()
-        dn_manager.IsNight = true
-        dn_manager:OnRep_IsNight()
+        local dn_manager = Utils.GetDayNightManager()
+        if Config.facility_power_off_always_night then
+            dn_manager.IsNight = true
+            dn_manager:OnRep_IsNight()
+        end
     end
 
 end
@@ -413,19 +431,23 @@ ExecuteInGameThread(function()
         -- even the local clients think power is off at the very start for a dedicated server
         -- i.e Visual FX like the Cafeteria Ventilation Fan will be powered off and not moving even
         -- if this mod is not installed on the local player's instance / coming from CrossPlay
-        dn_manager.MorningStartHour = -1
-        dn_manager.NightfallStartHour = -1
-        dn_manager.IsNight = true
-        dn_manager:OnRep_IsNight()
+        if Config.facility_power_off_always_night then
+            dn_manager.MorningStartHour = -1
+            dn_manager.NightfallStartHour = -1
+            dn_manager.IsNight = true
+            dn_manager:OnRep_IsNight()
+        end
 
         -- There will be some initial hiccups, so re-enforce night-time a bit after startup
         -- Don't try to set the first weather event here though, handle that during ReceiveBeginPlay
         -- instead to prevent Cleanup/GarbageCollection issues.
-        ExecuteWithDelay(2500, function()
-            set_night(dn_manager)
-            dn_manager.IsNight = true
-            dn_manager:OnRep_IsNight()
-        end)
+        if Config.facility_power_off_always_night then
+            ExecuteWithDelay(2500, function()
+                set_night(dn_manager)
+                dn_manager.IsNight = true
+                dn_manager:OnRep_IsNight()
+            end)
+        end
 
         if Config.foggy_weather_enabled then
             -- Starting Weather Event
@@ -449,7 +471,6 @@ ExecuteInGameThread(function()
         Utils.CacheWeatherEventLib(w_event_lib)
     end)
 
-    
 
     Utils.log("NightShift Hooks initialized")
 end)
@@ -477,7 +498,7 @@ if ToggleKey and ToggleKeyModifiers then
 
         end)
     end
-    
+
     RegisterKeyBind(ToggleKey, ToggleKeyModifiers, function()
         SetModState(not ModEnabled)
     end)

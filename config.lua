@@ -1,21 +1,38 @@
 return {
+
     -- [Debug] ============================================
     -- Enable debug log.
     Debug = true,
     transition_debug = false,
 
     -- [General Config] ===================================
+    -- True = Facility Power is Off and it's night-time/dark
+    facility_power_off_always_night = true,
+
+    -- True = Fog Weather Events Enabled
     foggy_weather_enabled = true,
+
+    -- True = Silo-3 Weather Fog Venting Button is Disabled
     disable_fog_venting = true,
-    warn_on_portal_reset = true,
+
+    -- Refresh the weather events every X hours
     hours_per_weather_event = 25,
+
+    -- True = Display a warning message to all before reset
+    warn_on_portal_reset = true,
+
+    -- True = New Players start with a light emitting trinket
     player_starts_with_trinket = true,
+
+    -- True = New Players start with a Lantern (powered)
     player_starts_with_lantern = true,
+
 
     -- [Facility Temporary Emergency Power]
     -- Chance for Temporary Facility Emergency Power Restoration
     temp_power_restore_chance = 10,
     temp_power_meter_max_hours = 14,
+
 
     -- [Player Starting Kit] ==============================
     -- Add your own custom starting items below to the kit
@@ -30,18 +47,19 @@ return {
 
     -- [Weather Config] ===================================
 
-    -- Starting Event Config:
+    -- First/Starting Weather Event:
     fog_type = "Fog",
 
-    -- Event List Config:
-    -- Select One or More Weather events
-    -- "None",
-    -- "Fog",
-    -- "RadLeak",
-    -- "Spores",
-	-- "ColdSnap",
-	-- "Blackout",
-	-- "BlackFog",
+    -- Weather Event List:
+    -- Add One or More Weather events to weather_event_selection below
+    -- Valid Weather Names are:
+    --   "None",
+    --   "Fog",
+    --   "RadLeak",
+    --   "Spores",
+	--   "ColdSnap",
+	--   "Blackout",
+	--   "BlackFog",
     -- Can repeat items in the list to (un)-balance the
     --  chance for one or more events
     weather_event_selection = {

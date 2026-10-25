@@ -22,6 +22,7 @@ ToggleKeyModifiers = {ModifierKey.CONTROL}
 local Utils = require("utils")
 local Config = require("../config")
 
+MOD_PREFIX = "[NIGHT]"
 ModName = "NightShift"
 ModVersion = "1.0.0"
 DebugMode = false
@@ -48,7 +49,7 @@ end
 ---@param night boolean
 local function set_night(dn_manager)
 
-    if temp_power_meter > 0 then
+    if temp_power_meter > 0 or next_day_has_power then
         return
     end
 
@@ -76,6 +77,58 @@ local function set_night(dn_manager)
     end
 end
 
+
+local function Handle_IsCurrentlyDaytime(context, IsDaytime)
+
+    is_daytime = IsDaytime:get()
+    msg = string.format("[Handle_IsCurrentlyDaytime]IsDaytime: %s", is_daytime)
+    Utils.log(msg)
+    if next_day_has_power or temp_power_meter > 0 then
+        Utils.log("[Handle_IsCurrentlyDaytime] Temp Power, Force IsDaytime True")
+        IsDaytime:set(true)
+    end
+
+end
+
+local function Handle_OnRep_IsNight(context)
+    local dn_manager = context:Get()
+    if Utils.IsValid(dn_manager) then
+        Utils.CacheDayNightManager()
+    else
+        return
+    end
+
+    if temp_power_meter > 0 then
+        Utils.log("Handle_OnRep_IsNight: Temp Power Meter > 0")
+        dn_manager.IsNight = false
+    end
+
+end
+
+local function DebugLogDayNightManager(dn_manager)
+    if not Utils.IsValid(dn_manager) then
+        return
+    end
+
+    msg = string.format("LastKnownHour: %d", dn_manager.LastKnownHour)
+    Utils.log(msg)
+
+    msg = string.format("temp_power_meter: %d", temp_power_meter)
+    Utils.log(msg)
+
+    msg = string.format("next_day_has_power: %s", next_day_has_power)
+    Utils.log(msg)
+
+    msg = string.format("IsNight: %s", dn_manager.IsNight)
+    Utils.log(msg)
+
+    msg = string.format("MorningStartHour: %s", dn_manager.MorningStartHour)
+    Utils.log(msg)
+
+    msg = string.format("NightfallStartHour: %s", dn_manager.NightfallStartHour)
+    Utils.log(msg)
+end
+
 -- Called Every Hour (Usually)
 local function Handle_OnRep_LastKnownHour(context)
 
@@ -88,8 +141,8 @@ local function Handle_OnRep_LastKnownHour(context)
         return
     end
 
-    Utils.log("dn_manager.LastKnownHour")
-    Utils.log(dn_manager.LastKnownHour)
+    DebugLogDayNightManager(dn_manager)
+
     hour_tick = hour_tick + 1
 
     -- Setup the Night Time Tick Rate to Match Day Rate        
@@ -97,7 +150,7 @@ local function Handle_OnRep_LastKnownHour(context)
 
     -- Debug Only
     if Config.transition_debug then
-        if (dn_manager.LastKnownHour+0) < 5 then
+        if (dn_manager.LastKnownHour+0) < 4 then
             dn_manager.SecondsPerRealSecond_Day   = 2000 -- Default: 30
             dn_manager.SecondsPerRealSecond_Night = 2000 -- Default: 120
         elseif (dn_manager.LastKnownHour+0) > 7 then
@@ -113,15 +166,17 @@ local function Handle_OnRep_LastKnownHour(context)
     if next_day_has_power then
 
         -- Prepare for Power Restore Next Hour
-        if dn_manager.LastKnownHour == 5 then
+        if dn_manager.LastKnownHour == 4 then
             Utils.log("Next Day has Power: Now=5am")
+            Utils.log("[Handle_OnRep_LastKnownHour]next_day_has_power: True")
             dn_manager.MorningStartHour = 6
             temp_power_meter = Config.temp_power_meter_max_hours
             dn_manager.NightfallStartHour = dn_manager.MorningStartHour + temp_power_meter
-            if dn_manager.NightfallStartHour > 23 then
-                dn_manager.NightfallStartHour = 23
+            if dn_manager.NightfallStartHour > 21 then
+                dn_manager.NightfallStartHour = 21
             end
-            next_day_has_power = false
+            Utils.log("[Handle_OnRep_LastKnownHour]dn_manager.NightfallStartHour: ")
+            Utils.log(dn_manager.NightfallStartHour)
         end
         -- Trigger Morning Now at 6am
         if dn_manager.LastKnownHour == 6 and (Config.facility_power_off_always_night or Config.foggy_weather_enabled) then
@@ -138,6 +193,13 @@ local function Handle_OnRep_LastKnownHour(context)
                 Utils.AllClientDisplayWarningMessage(msg, Enums.ClientWarnMessageColors.Green, false)
             end
 
+            next_day_has_power = false
+
+            -- Attempt to Force Daytime
+            local is_daytime = {}
+            dn_manager.IsNight = false
+            dn_manager:IsCurrentlyDaytime(is_daytime)
+
             -- Vent Weather
             if Config.foggy_weather_enabled then
                 ExecuteWithDelay(3000, function()
@@ -148,7 +210,7 @@ local function Handle_OnRep_LastKnownHour(context)
             end
         end
 
-    elseif Config.facility_power_off_always_night then
+    elseif Config.facility_power_off_always_night and temp_power_meter <= 0 then
         -- Set back to Night After Clearing Anomalies Should be no 
         -- announcements played with this method, i.e when processed
         -- in the same within the same Handle_OnRep_LastKnownHour call
@@ -181,22 +243,32 @@ local function Handle_OnRep_LastKnownHour(context)
     if temp_power_meter > 0 then
         temp_power_meter = temp_power_meter - 1
         if Config.facility_power_off_always_night then
+            Utils.log("temp_power_meter > 0, Set IsNight = false")
+            dn_manager.MorningStartHour = 6
+            dn_manager.NightfallStartHour = 21
             dn_manager.IsNight = false
+            dn_manager.OnRep_IsNight()
+            Utils.log("dn_manager.IsNight")
+            Utils.log(dn_manager.IsNight)
         end
     elseif Config.facility_power_off_always_night then
         set_night(dn_manager)
     end
 
     -- Process the Weather Events Next
-    if hour_tick % (Config.hours_per_weather_event) == 0 then
+    if hour_tick % (Config.hours_per_weather_event) == 0 and temp_power_meter <= 0 then
 
         local power_dice_roll = math.random()
         Utils.log(string.format("Temp Emergency Power Roll: %.2f < %.2f", power_dice_roll*100, Config.temp_power_restore_chance))
         if power_dice_roll < (Config.temp_power_restore_chance/100) and Config.facility_power_off_always_night then
             next_day_has_power = true
+            dn_manager.MorningStartHour = 6
+            dn_manager.NightfallStartHour = 21
+        else
+            Utils.log("[Handle_OnRep_LastKnownHour]next_day_has_power: False")
         end
 
-        if temp_power_meter <= 0 then
+        if temp_power_meter <= 0 and not next_day_has_power then
             if Config.foggy_weather_enabled then
                 print("Selecting New Weather...")
                 ExecuteWithDelay(1000, function()
@@ -286,7 +358,7 @@ local function Handle_VentWeatherFXToAllPlayers(context)
         return
     end
 
-    if temp_power_meter > 0 then
+    if temp_power_meter > 0 or next_day_has_power then
         return
     end
 
@@ -311,7 +383,7 @@ local function Handle_ClearActiveWeatherRequests(context)
     -- Store Current Weather Event Name
     dn_manager = Utils.GetDayNightManager()
 
-    if temp_power_meter > 0 then
+    if temp_power_meter > 0 or next_day_has_power then
         return
     end
 
@@ -331,6 +403,101 @@ local function Handle_ClearActiveWeatherRequests(context)
             end
         end
     end
+end
+
+
+-- Server Side Supported
+local function Handle_Request_SendTextChatMessage(Context, MessageToSend)
+    Utils.log(">>>> Handle_Request_SendTextChatMessage Fired! <<< ")
+    if not Context then return end
+    local player_controller = Context:get() -- AAbioticPlayerController
+
+    local steam_display_name = player_controller.MyPlayerCharacter.MyPlayerState:GetPlayerName():ToString()
+    local message = MessageToSend:get():ToString()
+    local msg_fmt = Utils.split_str(message, " ")
+
+    local max_key = 0
+    for k in pairs(msg_fmt) do
+        if k ~= nil then
+            max_key = k
+        end
+    end
+
+
+    -- Get/Set Leyak Cooldown
+    if (msg_fmt[1] == "/night") and max_key == 1 then
+        dn_manager = Utils.GetDayNightManager()
+        if Utils.IsValid(dn_manager) then
+            set_night(dn_manager)
+            local msg = "Attempting to Set Night..."
+            Utils.PlayCtrlTextChatMessage(player_controller, msg, MOD_PREFIX, Enums.MsgColors.bg, Enums.MsgColors.green)
+        end
+    end
+
+    if (msg_fmt[1] == "/day") and max_key == 1 then
+        dn_manager = Utils.GetDayNightManager()
+        if Utils.IsValid(dn_manager) then
+
+            dn_manager.MorningStartHour = -1
+            dn_manager.NightfallStartHour = -1
+            dn_manager.IsNight = false
+            dn_manager:OnRep_IsNight()
+
+
+            ExecuteInGameThread(function()
+                --dn_manager:InitDayNightTimer()
+                dn_manager.IsNight = false
+                temp_power_meter = 12
+                dn_manager.MorningStartHour = Utils.GetCurrentGameHour() + 1
+                dn_manager.NightfallStartHour = 21
+                local msg = "Attempting to Set Day..."
+                dn_manager:OnRep_IsNight()
+                --OnRep_CurrentDay()
+                --dn_manager:InitDayNightTimer()
+                next_day_has_power = true
+                Utils.PlayCtrlTextChatMessage(player_controller, msg, MOD_PREFIX, Enums.MsgColors.bg, Enums.MsgColors.green)
+            end)
+        end
+    end
+
+    if (msg_fmt[1] == "/debug") and max_key == 1 then
+        local delay = 1000
+        local delay_inc = 1000
+        local msg = "Attempting to print Debugging..."
+        Utils.PlayCtrlTextChatMessage(player_controller, msg, MOD_PREFIX, Enums.MsgColors.bg, Enums.MsgColors.green)
+
+        delay = delay + delay_inc
+        ExecuteWithDelay(delay, function()
+            local msg = string.format("LastKnownHour: %d", dn_manager.LastKnownHour)
+            Utils.PlayCtrlTextChatMessage(player_controller, msg, MOD_PREFIX, Enums.MsgColors.bg, Enums.MsgColors.green)
+        end)
+
+        ExecuteWithDelay(delay, function()
+            local msg = string.format("temp_power_meter: %d", temp_power_meter)
+            Utils.PlayCtrlTextChatMessage(player_controller, msg, MOD_PREFIX, Enums.MsgColors.bg, Enums.MsgColors.green)
+        end)
+
+        ExecuteWithDelay(delay, function()
+            local msg = string.format("next_day_has_power: %s", next_day_has_power)
+            Utils.PlayCtrlTextChatMessage(player_controller, msg, MOD_PREFIX, Enums.MsgColors.bg, Enums.MsgColors.green)
+        end)
+
+        ExecuteWithDelay(delay, function()
+            local msg = string.format("IsNight: %s", dn_manager.IsNight)
+            Utils.PlayCtrlTextChatMessage(player_controller, msg, MOD_PREFIX, Enums.MsgColors.bg, Enums.MsgColors.green)
+        end)
+
+        ExecuteWithDelay(delay, function()
+            local msg = string.format("MorningStartHour: %s", dn_manager.MorningStartHour)
+            Utils.PlayCtrlTextChatMessage(player_controller, msg, MOD_PREFIX, Enums.MsgColors.bg, Enums.MsgColors.green)
+        end)
+
+        ExecuteWithDelay(delay, function()
+            local msg = string.format("NightfallStartHour: %s", dn_manager.NightfallStartHour)
+            Utils.PlayCtrlTextChatMessage(player_controller, msg, MOD_PREFIX, Enums.MsgColors.bg, Enums.MsgColors.green)
+        end)
+    end
+
 end
 
 local function Handle_ReceiveBeginPlay(context)
@@ -410,6 +577,32 @@ ExecuteInGameThread(function()
         end
     end)
 
+    -- /Game/Blueprints/Environment/Systems/DayNightManager.DayNightManager_C:OnRep_IsNight
+    ExecuteWithDelay(2500, function()
+    local okHook, errHook = pcall(RegisterHook,
+        "/Game/Blueprints/Environment/Systems/DayNightManager.DayNightManager_C:OnRep_IsNight",
+        Handle_OnRep_IsNight
+    )
+        if not okHook then
+            print("NightShift Hook registration failed: %s", tostring(errHook))
+        else
+            print("NightShift Hook registration success: OnRep_IsNight")
+        end
+    end)
+
+    -- /Game/Blueprints/Environment/Systems/DayNightManager.DayNightManager_C:IsCurrentlyDaytime
+    ExecuteWithDelay(2500, function()
+    local okHook, errHook = pcall(RegisterHook,
+        "/Game/Blueprints/Environment/Systems/DayNightManager.DayNightManager_C:IsCurrentlyDaytime",
+        Handle_IsCurrentlyDaytime
+    )
+        if not okHook then
+            print("NightShift Hook registration failed: %s", tostring(errHook))
+        else
+            print("NightShift Hook registration success: IsCurrentlyDaytime")
+        end
+    end)
+
     -- /Game/Blueprints/Meta/Abiotic_Survival_GameState.Abiotic_Survival_GameState_C:ReceiveBeginPlay
     ExecuteWithDelay(2500, function()
     local okHook, errHook = pcall(RegisterHook,
@@ -420,6 +613,18 @@ ExecuteInGameThread(function()
             print("NightShift Hook registration failed: %s", tostring(errHook))
         else
             print("NightShift Hook registration success: ReceiveBeginPlay")
+        end
+    end)
+
+    ExecuteWithDelay(2500, function()
+        local okHook, errHook = pcall(RegisterHook,
+            "/Game/Blueprints/Meta/Abiotic_PlayerController.Abiotic_PlayerController_C:Request_SendTextChatMessage",
+            Handle_Request_SendTextChatMessage
+        )
+        if not okHook then
+            Utils.error(string.format("Hook registration failed: %s", tostring(errHook)))
+        else
+            Utils.log("Hook registration success: Handle_Request_SendTextChatMessage")
         end
     end)
 
@@ -478,7 +683,7 @@ end)
 if ToggleKey and ToggleKeyModifiers then
     local function SetModState(Enable)
         ExecuteInGameThread(function()
-           
+
             Enable = Enable or false
             ModEnabled = Enable
             local state = "Disabled"

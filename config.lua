@@ -30,7 +30,7 @@ return {
 
     -- [Facility Temporary Emergency Power] ===============
     -- Chance for Temporary Facility Emergency Power Restoration
-    temp_power_restore_chance = 10,
+    temp_power_restore_chance = 50,
     temp_power_meter_max_hours = 14,
 
 

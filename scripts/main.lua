@@ -448,7 +448,7 @@ local function Handle_Request_SendTextChatMessage(Context, MessageToSend)
                 --dn_manager:InitDayNightTimer()
                 dn_manager.IsNight = false
                 temp_power_meter = 12
-                dn_manager.MorningStartHour = Utils.GetCurrentGameHour() + 1
+                dn_manager.MorningStartHour = 6
                 dn_manager.NightfallStartHour = 21
                 local msg = "Attempting to Set Day..."
                 dn_manager:OnRep_IsNight()

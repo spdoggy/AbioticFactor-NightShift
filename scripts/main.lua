@@ -27,11 +27,18 @@ ModName = "NightShift"
 ModVersion = "1.0.0"
 DebugMode = false
 local last_weather_event =  Config.fog_type
-local clock_tick = 0
 local hour_tick = 0
 local temp_power_meter = 0
 local next_day_has_power = false
-local mod_initialization = false
+local PowerOnEventStates = {
+    Inactive = "Inactive",
+    WaitForDay = "WaitingForDayMorningHour",
+    PowerOn = "PowerOn",
+    PowerOff = "PowerOff"
+}
+local power_on_event_state = PowerOnEventStates.Inactive
+local next_morning_hour = -1
+local next_nightfall_hour = -1
 
 Utils.log("Starting NightShift mod initialization")
 
@@ -46,7 +53,6 @@ end
 
 --- Set to Night Time
 ---@param dn_manager ADayNightManager_C
----@param night boolean
 local function set_night(dn_manager)
 
     if temp_power_meter > 0 or next_day_has_power then
@@ -77,6 +83,34 @@ local function set_night(dn_manager)
     end
 end
 
+--- Setup Day or Night Transition in an offset from current time
+---@param dn_manager ADayNightManager_C
+---@param day_or_night string
+---@param trigger_in_x_hours number
+---@return number trigger_hour
+local function setup_day_night_trigger(dn_manager, day_or_night, trigger_in_x_hours)
+
+    if not Utils.IsValid(dn_manager) then
+        dn_manager = Utils.GetDayNightManager()
+        if not Utils.IsValid(dn_manager) then
+            Utils.error("[]: Could not get valid DayNightManager")
+            return
+        end
+    end
+
+    trigger_in_x_hours = trigger_in_x_hours or 1
+    day_or_night = day_or_night or "night"
+    local trigger_hour = (Utils.GetCurrentGameHour() + trigger_in_x_hours) % 24
+    if day_or_night == "day" then
+        dn_manager.MorningStartHour = trigger_hour
+    else
+        dn_manager.NightfallStartHour = trigger_hour
+    end
+    local msg = string.format("[setup_day_night_trigger]: %s, Hour = %d", day_or_night, trigger_hour)
+    Utils.log(msg)
+
+    return trigger_hour
+end
 
 local function Handle_IsCurrentlyDaytime(context, IsDaytime)
     if not ModEnabled then
@@ -115,6 +149,9 @@ local function DebugLogDayNightManager(dn_manager)
     if not Utils.IsValid(dn_manager) then
         return
     end
+
+    msg = string.format("power_on_event_state: %s", power_on_event_state)
+    Utils.log(msg)
 
     msg = string.format("LastKnownHour: %d", dn_manager.LastKnownHour)
     Utils.log(msg)
@@ -172,30 +209,67 @@ local function Handle_OnRep_LastKnownHour(context)
         end
     end
 
-    if next_day_has_power then
-        
-    elseif Config.facility_power_off_always_night and temp_power_meter > 0 then
+    -- State: WaitForDay -> PowerOn
+    if power_on_event_state == PowerOnEventStates.WaitForDay then
+        -- If Time for Power On Event, Broadcast Text Message
+        if next_morning_hour == dn_manager.LastKnownHour then
 
-    elseif Config.facility_power_off_always_night and temp_power_meter <= 0 then
+            -- Msg 1
+            Utils.AllClientDisplayWarningMessage("Something rumbles deep below...", Enums.ClientWarnMessageColors.Purple, false)
+            -- Msg 2
+            if Config.facility_power_off_always_night then
+                local msg = string.format(".. Facility Power Temporarily Roars Back to Life! (%d hours)", temp_power_meter)
+                Utils.AllClientDisplayWarningMessage(msg, Enums.ClientWarnMessageColors.Green, false)
+            elseif Config.foggy_weather_enabled then
+                local msg = string.format(".. The Facility Power Ventilation System Roars Back to Life! (%d hours)", temp_power_meter)
+                Utils.AllClientDisplayWarningMessage(msg, Enums.ClientWarnMessageColors.Green, false)
+            end
 
+            -- Record that Power On Event is kicked-off
+            next_day_has_power = false
+            power_on_event_state = PowerOnEventStates.PowerOn
+        end
+
+    -- State: PowerOn -> PowerOff
+    elseif power_on_event_state == PowerOnEventStates.PowerOn then
+        if next_nightfall_hour == dn_manager.LastKnownHour then
+            power_on_event_state = PowerOnEventStates.PowerOff
+        end
+
+    -- State: PowerOff -> Inactive
+    elseif power_on_event_state == PowerOnEventStates.PowerOff then
+        if next_nightfall_hour ~= dn_manager.LastKnownHour then
+            power_on_event_state = PowerOnEventStates.Inactive
+            dn_manager.MorningStartHour = -1
+            dn_manager.NightfallStartHour = -1
+            next_nightfall_hour = -1
+            next_morning_hour = -1
+        end
     end
 
-    -- Process the Power/Weather Events Next
+    -- Process the Power/Weather Events Next, State: Inactive -> WaitForDay
     if hour_tick % (Config.hours_per_weather_event) == 0 and temp_power_meter <= 0 then
 
         local power_dice_roll = math.random()
         local msg = string.format("Temp Emergency Power Roll: %.2f < %.2f", power_dice_roll*100, Config.temp_power_restore_chance)
         Utils.log(msg)
+
         -- TODO: Remove Debug
         Utils.AllClientDisplayWarningMessage(msg, Enums.ClientWarnMessageColors.Green, false)
+
         if power_dice_roll < (Config.temp_power_restore_chance/100) and Config.facility_power_off_always_night then
+            -- Setup Next Transitions
+            next_morning_hour = setup_day_night_trigger(dn_manager, "day", 1)
+            next_nightfall_hour = setup_day_night_trigger(dn_manager, "night", Config.temp_power_meter_max_hours)
+            -- Record Start of Power On Event
+            power_on_event_state = PowerOnEventStates.WaitForDay
             next_day_has_power = true
-            dn_manager.MorningStartHour = Utils.GetCurrentGameHour() + 1
-            dn_manager.NightfallStartHour = -1
+            temp_power_meter = Config.temp_power_meter_max_hours
         else
             Utils.log("[Handle_OnRep_LastKnownHour]next_day_has_power: False")
         end
 
+        -- Set Next Weather Event if Fog config is on, and not blocked by PowerOn Event
         if temp_power_meter <= 0 and not next_day_has_power then
             if Config.foggy_weather_enabled then
                 print("Selecting New Weather...")
@@ -215,6 +289,11 @@ local function Handle_OnRep_LastKnownHour(context)
         end
     end
 
+    -- Decrement temp_power_meter counter
+    Utils.log("temp_power_meter: "..temp_power_meter)
+    if temp_power_meter > 0 then
+        temp_power_meter = temp_power_meter - 1
+    end
 
     -- -- If Power Event
     -- if next_day_has_power then
@@ -601,34 +680,47 @@ local function Handle_Request_SendTextChatMessage(Context, MessageToSend)
             Utils.PlayCtrlTextChatMessage(player_controller, msg, MOD_PREFIX, Enums.MsgColors.bg, Enums.MsgColors.green)
 
             delay = delay + delay_inc
+
+            ExecuteWithDelay(delay, function()
+                local msg = string.format("power_on_event_state: %s", power_on_event_state)
+                Utils.PlayCtrlTextChatMessage(player_controller, msg, MOD_PREFIX, Enums.MsgColors.bg, Enums.MsgColors.green)
+                Utils.log(msg)
+            end)
+
             ExecuteWithDelay(delay, function()
                 local msg = string.format("LastKnownHour: %d", dn_manager.LastKnownHour)
                 Utils.PlayCtrlTextChatMessage(player_controller, msg, MOD_PREFIX, Enums.MsgColors.bg, Enums.MsgColors.green)
+                Utils.log(msg)
             end)
 
             ExecuteWithDelay(delay, function()
                 local msg = string.format("temp_power_meter: %d", temp_power_meter)
                 Utils.PlayCtrlTextChatMessage(player_controller, msg, MOD_PREFIX, Enums.MsgColors.bg, Enums.MsgColors.green)
+                Utils.log(msg)
             end)
 
             ExecuteWithDelay(delay, function()
                 local msg = string.format("next_day_has_power: %s", next_day_has_power)
                 Utils.PlayCtrlTextChatMessage(player_controller, msg, MOD_PREFIX, Enums.MsgColors.bg, Enums.MsgColors.green)
+                Utils.log(msg)
             end)
 
             ExecuteWithDelay(delay, function()
                 local msg = string.format("IsNight: %s", dn_manager.IsNight)
                 Utils.PlayCtrlTextChatMessage(player_controller, msg, MOD_PREFIX, Enums.MsgColors.bg, Enums.MsgColors.green)
+                Utils.log(msg)
             end)
 
             ExecuteWithDelay(delay, function()
                 local msg = string.format("MorningStartHour: %s", dn_manager.MorningStartHour)
                 Utils.PlayCtrlTextChatMessage(player_controller, msg, MOD_PREFIX, Enums.MsgColors.bg, Enums.MsgColors.green)
+                Utils.log(msg)
             end)
 
             ExecuteWithDelay(delay, function()
                 local msg = string.format("NightfallStartHour: %s", dn_manager.NightfallStartHour)
                 Utils.PlayCtrlTextChatMessage(player_controller, msg, MOD_PREFIX, Enums.MsgColors.bg, Enums.MsgColors.green)
+                Utils.log(msg)
             end)
         end
     end

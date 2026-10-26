@@ -3,7 +3,9 @@ return {
     -- [Debug] ============================================
     -- Enable debug log.
     Debug = true,
-    transition_debug = true,
+
+    -- True = Speed up time greatly, slow down between 5-8am
+    transition_debug = false,
 
     -- [General Config] ===================================
     -- True = Facility Power is Off and it's night-time/dark
@@ -39,7 +41,7 @@ return {
     -- https://docs.google.com/spreadsheets/d/1IA3mMS6LnLzyneEEeh2-52-RhgqjlTjj5Nno1RPF56c/edit?gid=908652592#gid=908652592
     -- Or use the ItemSpawner mod ( https://www.nexusmods.com/abioticfactor/mods/175 ) to search for item_ids
     -- [TODO]: Add an item_id exporter for the mod and include a text file example
-    enable_custom_emergency_starter_kit = false,
+    enable_custom_emergency_starter_kit = true,
     custom_emergency_starter_kit = {
         {cat = "Craftables", item_id = "net",          qty = 10, table = "/Game/Blueprints/Items/ItemTable_Craftables.ItemTable_Craftables"},
         {cat = "Weapons",    item_id = "net_launcher", qty =  1, table = "/Game/Blueprints/Items/ItemTable_Weapons.ItemTable_Weapons"},

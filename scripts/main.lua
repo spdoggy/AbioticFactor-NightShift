@@ -145,10 +145,14 @@ local function Handle_OnRep_IsNight(context)
 
 end
 
+--- Print DayNightManager debugging to UE4SS log
+---@param dn_manager ADayNightManager_C
 local function DebugLogDayNightManager(dn_manager)
     if not Utils.IsValid(dn_manager) then
         return
     end
+
+    local msg = ""
 
     msg = string.format("power_on_event_state: %s", power_on_event_state)
     Utils.log(msg)
@@ -173,6 +177,7 @@ local function DebugLogDayNightManager(dn_manager)
 end
 
 -- Called Every Hour (Usually)
+-- Main handler for Fog, Night, and Power State machine
 local function Handle_OnRep_LastKnownHour(context)
 
     if not ModEnabled then
@@ -188,6 +193,7 @@ local function Handle_OnRep_LastKnownHour(context)
         return
     end
 
+    -- Hourly Debug 
     DebugLogDayNightManager(dn_manager)
 
     hour_tick = hour_tick + 1
@@ -272,7 +278,7 @@ local function Handle_OnRep_LastKnownHour(context)
         -- Set Next Weather Event if Fog config is on, and not blocked by PowerOn Event
         if temp_power_meter <= 0 and not next_day_has_power then
             if Config.foggy_weather_enabled then
-                print("Selecting New Weather...")
+                Utils.log("Selecting New Weather...")
                 ExecuteWithDelay(1000, function()
                     ExecuteInGameThread(function()
                         Utils.TriggerWeatherEvent("None")
@@ -281,7 +287,7 @@ local function Handle_OnRep_LastKnownHour(context)
                 ExecuteWithDelay(4000, function()
                     ExecuteInGameThread(function()
                         local selected = math.random(1, #Config.weather_event_selection)
-                        print(Config.weather_event_selection[selected])
+                        Utils.log(Config.weather_event_selection[selected])
                         Utils.TriggerWeatherEvent(Config.weather_event_selection[selected])
                     end)
                 end)
@@ -405,7 +411,7 @@ local function Handle_OnRep_LastKnownHour(context)
 
     --     if temp_power_meter <= 0 and not next_day_has_power then
     --         if Config.foggy_weather_enabled then
-    --             print("Selecting New Weather...")
+    --             Utils.log("Selecting New Weather...")
     --             ExecuteWithDelay(1000, function()
     --                 ExecuteInGameThread(function()
     --                     Utils.TriggerWeatherEvent("None")
@@ -414,7 +420,7 @@ local function Handle_OnRep_LastKnownHour(context)
     --             ExecuteWithDelay(4000, function()
     --                 ExecuteInGameThread(function()
     --                     local selected = math.random(1, #Config.weather_event_selection)
-    --                     print(Config.weather_event_selection[selected])
+    --                     Utils.log(Config.weather_event_selection[selected])
     --                     Utils.TriggerWeatherEvent(Config.weather_event_selection[selected])
     --                 end)
     --             end)
@@ -504,7 +510,7 @@ local function Handle_VentWeatherFXToAllPlayers(context)
     if LastWeatherInConfig() and Config.disable_fog_venting then
         ExecuteWithDelay(3000, function()
             local selected = math.random(1, #Config.weather_event_selection)
-            print(selected)
+            Utils.log(string.format("[Handle_VentWeatherFXToAllPlayers]: %s", Config.weather_event_selection[selected]))
             Utils.TriggerWeatherEvent(Config.weather_event_selection[selected])
         end)
     end
@@ -534,13 +540,12 @@ local function Handle_ClearActiveWeatherRequests(context)
         if Utils.IsValid(dn_manager) then
             last_weather_event = dn_manager.CurrentWeatherEvent:ToString()
             if last_weather_event == "RadLeak" and Config.disable_fog_venting then
-                print("Selecting New Weather...")
                 ExecuteWithDelay(1000, function()
                     Utils.TriggerWeatherEvent("None")
                 end)
                 ExecuteWithDelay(4000, function()
                     local selected = math.random(1, #Config.weather_event_selection)
-                    print(Config.weather_event_selection[selected])
+                    Utils.log(string.format("[Handle_ClearActiveWeatherRequests]: %s", Config.weather_event_selection[selected]))
                     Utils.TriggerWeatherEvent(Config.weather_event_selection[selected])
                 end)
             end
@@ -759,9 +764,9 @@ ExecuteInGameThread(function()
         Handle_InitializeTraits
     )
         if not okHook then
-            print("NightShift Hook registration failed: %s", tostring(errHook))
+            Utils.log("NightShift Hook registration failed: %s", tostring(errHook))
         else
-            print("NightShift Hook registration success: Handle_IsCurrentlyDaytime")
+            Utils.log("NightShift Hook registration success: Handle_IsCurrentlyDaytime")
         end
     end)
 
@@ -772,9 +777,9 @@ ExecuteInGameThread(function()
         Handle_VentWeatherFXToAllPlayers
     )
         if not okHook then
-            print("NightShift Hook registration failed: %s", tostring(errHook))
+            Utils.log("NightShift Hook registration failed: %s", tostring(errHook))
         else
-            print("NightShift Hook registration success: VentWeatherFXToAllPlayers")
+            Utils.log("NightShift Hook registration success: VentWeatherFXToAllPlayers")
         end
     end)
 
@@ -785,9 +790,9 @@ ExecuteInGameThread(function()
         Handle_ClearActiveWeatherRequests
     )
         if not okHook then
-            print("NightShift Hook registration failed: %s", tostring(errHook))
+            Utils.log("NightShift Hook registration failed: %s", tostring(errHook))
         else
-            print("NightShift Hook registration success: ClearActiveWeatherRequests")
+            Utils.log("NightShift Hook registration success: ClearActiveWeatherRequests")
         end
     end)
 
@@ -798,9 +803,9 @@ ExecuteInGameThread(function()
         Handle_OnRep_LastKnownHour
     )
         if not okHook then
-            print("NightShift Hook registration failed: %s", tostring(errHook))
+            Utils.log("NightShift Hook registration failed: %s", tostring(errHook))
         else
-            print("NightShift Hook registration success: OnRep_LastKnownHour")
+            Utils.log("NightShift Hook registration success: OnRep_LastKnownHour")
         end
     end)
 
@@ -811,9 +816,9 @@ ExecuteInGameThread(function()
     --     Handle_OnRep_IsNight
     -- )
     --     if not okHook then
-    --         print("NightShift Hook registration failed: %s", tostring(errHook))
+    --         Utils.log("NightShift Hook registration failed: %s", tostring(errHook))
     --     else
-    --         print("NightShift Hook registration success: OnRep_IsNight")
+    --         Utils.log("NightShift Hook registration success: OnRep_IsNight")
     --     end
     -- end)
 
@@ -824,9 +829,9 @@ ExecuteInGameThread(function()
     --     Handle_IsCurrentlyDaytime
     -- )
     --     if not okHook then
-    --         print("NightShift Hook registration failed: %s", tostring(errHook))
+    --         Utils.log("NightShift Hook registration failed: %s", tostring(errHook))
     --     else
-    --         print("NightShift Hook registration success: IsCurrentlyDaytime")
+    --         Utils.log("NightShift Hook registration success: IsCurrentlyDaytime")
     --     end
     -- end)
 
@@ -837,9 +842,9 @@ ExecuteInGameThread(function()
         Handle_ReceiveBeginPlay
     )
         if not okHook then
-            print("NightShift Hook registration failed: %s", tostring(errHook))
+            Utils.log("NightShift Hook registration failed: %s", tostring(errHook))
         else
-            print("NightShift Hook registration success: ReceiveBeginPlay")
+            Utils.log("NightShift Hook registration success: ReceiveBeginPlay")
         end
     end)
 

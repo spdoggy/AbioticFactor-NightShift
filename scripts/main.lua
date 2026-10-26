@@ -112,39 +112,6 @@ local function setup_day_night_trigger(dn_manager, day_or_night, trigger_in_x_ho
     return trigger_hour
 end
 
-local function Handle_IsCurrentlyDaytime(context, IsDaytime)
-    if not ModEnabled then
-        return
-    end
-    is_daytime = IsDaytime:get()
-    msg = string.format("[Handle_IsCurrentlyDaytime]IsDaytime: %s", is_daytime)
-    Utils.log(msg)
-    if next_day_has_power or temp_power_meter > 0 then
-        Utils.log("[Handle_IsCurrentlyDaytime] Temp Power, Force IsDaytime True")
-        IsDaytime:set(true)
-    end
-
-end
-
-local function Handle_OnRep_IsNight(context)
-
-    if not ModEnabled then
-        return
-    end
-    local dn_manager = context:get()
-    if Utils.IsValid(dn_manager) then
-        Utils.CacheDayNightManager()
-    else
-        return
-    end
-
-    if temp_power_meter > 0 then
-        Utils.log("Handle_OnRep_IsNight: Temp Power Meter > 0")
-        dn_manager.IsNight = false
-    end
-
-end
-
 --- Print DayNightManager debugging to UE4SS log
 ---@param dn_manager ADayNightManager_C
 local function DebugLogDayNightManager(dn_manager)
@@ -352,6 +319,7 @@ local function Handle_OnRep_LastKnownHour(context)
     --     end
 
     -- elseif Config.facility_power_off_always_night and temp_power_meter <= 0 then
+    --     -- TODO: Is this needed? Make this statement more clear
     --     -- Set back to Night After Clearing Anomalies Should be no 
     --     -- announcements played with this method, i.e when processed
     --     -- in the same within the same Handle_OnRep_LastKnownHour call
@@ -553,30 +521,6 @@ local function Handle_ClearActiveWeatherRequests(context)
     end
 end
 
-
-local function Handle_IsPowered(context, PowerOn)
-
-    if not ModEnabled then
-        return
-    end
-
-    if not context then
-        return
-    end
-
-    local socket = context:get()
-    local power_on = PowerOn:get()
-    if temp_power_meter > 0 then
-        --context:Broadcast_PowerInterruptContinued()
-        --PowerOn:set(true)
-        socket.PowerInterrupted = false
-        socket.CachedPowerState = true
-        --context:OnRep_PowerInterrupted()
-        PowerOn:set(true)
-        socket:TogglePowerFX()
-    end
-end
-
 -- Server Side Supported
 local function Handle_Request_SendTextChatMessage(Context, MessageToSend)
     Utils.log(">>>> Handle_Request_SendTextChatMessage Fired! <<< ")
@@ -613,6 +557,7 @@ local function Handle_Request_SendTextChatMessage(Context, MessageToSend)
             local msg = string.format("Attempting to Set MorningStartHour to %d", msg_fmt[2])
             Utils.PlayCtrlTextChatMessage(player_controller, msg, MOD_PREFIX, Enums.MsgColors.bg, Enums.MsgColors.green)
             dn_manager.MorningStartHour = msg_fmt[2]
+            next_morning_hour = msg_fmt[2]
         end
     end
 
@@ -622,57 +567,36 @@ local function Handle_Request_SendTextChatMessage(Context, MessageToSend)
             local msg = string.format("Attempting to Set NightfallStartHour to %d", msg_fmt[2])
             Utils.PlayCtrlTextChatMessage(player_controller, msg, MOD_PREFIX, Enums.MsgColors.bg, Enums.MsgColors.green)
             dn_manager.NightfallStartHour = msg_fmt[2]
+            next_nightfall_hour = msg_fmt[2]
         end
     end
 
     if (msg_fmt[1] == "/night") and max_key == 1 then
         dn_manager = Utils.GetDayNightManager()
         if Utils.IsValid(dn_manager) then
-            dn_manager.MorningStartHour = -1
-            dn_manager.NightfallStartHour = Utils.GetCurrentGameHour() + 1
-            -- dn_manager:OnRep_IsNight()
-            -- dn_manager:Nightfall__DelegateSignature()
+            next_nightfall_hour = setup_day_night_trigger(dn_manager, "night", 1)
             local msg = "Attempting to Set Night..."
-            Utils.PlayCtrlTextChatMessage(player_controller, msg, MOD_PREFIX, Enums.MsgColors.bg, Enums.MsgColors.green)
-        end
-    end
-
-    if (msg_fmt[1] == "/blackout") and max_key == 1 then
-        dn_manager = Utils.GetDayNightManager()
-        if Utils.IsValid(dn_manager) then
-            local msg = "Attempting to Set OnRep_BlackoutActive..."
-            dn_manager:OnRep_BlackoutActive()
-            dn_manager:OnRep_CurrentWeatherEvent()
-            dn_manager:CheckForVignetteResets()
-            dn_manager.DayNightManuallyPaused = true
-            dn_manager.DayNightManuallyPaused = false
-            --dn_manager:Toggle_Day_NightCycle()
             Utils.PlayCtrlTextChatMessage(player_controller, msg, MOD_PREFIX, Enums.MsgColors.bg, Enums.MsgColors.green)
         end
     end
 
     if (msg_fmt[1] == "/power") and max_key == 1 then
         local msg = "Set Next Day Power..."
-        temp_power_meter = 12
+        next_morning_hour = setup_day_night_trigger(dn_manager, "day", 1)
+        next_nightfall_hour = setup_day_night_trigger(dn_manager, "night", Config.temp_power_meter_max_hours)
+        -- Record Start of Power On Event
+        power_on_event_state = PowerOnEventStates.WaitForDay
         next_day_has_power = true
+        temp_power_meter = Config.temp_power_meter_max_hours
         Utils.PlayCtrlTextChatMessage(player_controller, msg, MOD_PREFIX, Enums.MsgColors.bg, Enums.MsgColors.green)
     end
 
     if (msg_fmt[1] == "/day") and max_key == 1 then
         dn_manager = Utils.GetDayNightManager()
         if Utils.IsValid(dn_manager) then
-            -- dn_manager.MorningStartHour = 6
-            -- dn_manager.NightfallStartHour = 21
-            -- dn_manager.IsNight = false
-            -- dn_manager:OnRep_IsNight()
-            -- dn_manager:Morning__DelegateSignature()
-            -- dn_manager:InitDayNightTimer()
-
+            next_morning_hour = setup_day_night_trigger(dn_manager, "day", 1)
             local msg = "Attempting to Set Day..."
-            -- dn_manager:OnRep_CurrentDay()
             Utils.PlayCtrlTextChatMessage(player_controller, msg, MOD_PREFIX, Enums.MsgColors.bg, Enums.MsgColors.green)
-            dn_manager.MorningStartHour = Utils.GetCurrentGameHour() + 1
-            dn_manager.NightfallStartHour = -1
         end
     end
 
@@ -740,7 +664,6 @@ local function Handle_ReceiveBeginPlay(context)
     local world = gameState:GetWorld()
     if world and world:IsValid() then
         Utils.WorldCache(world)
-        mod_initialization = true
 
         -- Re-Initialize to Night
         local dn_manager = Utils.GetDayNightManager()
@@ -809,31 +732,6 @@ ExecuteInGameThread(function()
         end
     end)
 
-    -- -- /Game/Blueprints/Environment/Systems/DayNightManager.DayNightManager_C:OnRep_IsNight
-    -- ExecuteWithDelay(2500, function()
-    -- local okHook, errHook = pcall(RegisterHook,
-    --     "/Game/Blueprints/Environment/Systems/DayNightManager.DayNightManager_C:OnRep_IsNight",
-    --     Handle_OnRep_IsNight
-    -- )
-    --     if not okHook then
-    --         Utils.log("NightShift Hook registration failed: %s", tostring(errHook))
-    --     else
-    --         Utils.log("NightShift Hook registration success: OnRep_IsNight")
-    --     end
-    -- end)
-
-    -- -- /Game/Blueprints/Environment/Systems/DayNightManager.DayNightManager_C:IsCurrentlyDaytime
-    -- ExecuteWithDelay(2500, function()
-    -- local okHook, errHook = pcall(RegisterHook,
-    --     "/Game/Blueprints/Environment/Systems/DayNightManager.DayNightManager_C:IsCurrentlyDaytime",
-    --     Handle_IsCurrentlyDaytime
-    -- )
-    --     if not okHook then
-    --         Utils.log("NightShift Hook registration failed: %s", tostring(errHook))
-    --     else
-    --         Utils.log("NightShift Hook registration success: IsCurrentlyDaytime")
-    --     end
-    -- end)
 
     -- /Game/Blueprints/Meta/Abiotic_Survival_GameState.Abiotic_Survival_GameState_C:ReceiveBeginPlay
     ExecuteWithDelay(2500, function()
@@ -860,24 +758,12 @@ ExecuteInGameThread(function()
         end
     end)
 
-    -- ExecuteWithDelay(2500, function()
-    --     local okHook, errHook = pcall(RegisterHook,
-    --         "/Game/Blueprints/Environment/Electrical/PowerSocket_ParentBP.PowerSocket_ParentBP_C:IsPowered",
-    --         Handle_IsPowered
-    --     )
-    --     if not okHook then
-    --         Utils.error(string.format("Hook registration failed: %s", tostring(errHook)))
-    --     else
-    --         Utils.log("Hook registration success: IsPowered")
-    --     end
-    -- end)
-
     NotifyOnNewObject("/Game/Blueprints/Environment/Systems/DayNightManager.DayNightManager_C", function(dn_manager)
         Utils.log("NotifyOnNewObject: DayNightManager_C")
         Utils.CacheDayNightManager(dn_manager)
 
         -- Important: Overriding the start hours here is the magic combination that will make
-        -- even the local clients think power is off at the very start for a dedicated server
+        -- even the local clients think power is off at the very start for a dedicated server.
         -- i.e Visual FX like the Cafeteria Ventilation Fan will be powered off and not moving even
         -- if this mod is not installed on the local player's instance / coming from CrossPlay
         if Config.facility_power_off_always_night then

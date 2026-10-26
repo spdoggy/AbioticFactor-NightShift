@@ -3,7 +3,7 @@ return {
     -- [Debug] ============================================
     -- Enable debug log.
     Debug = true,
-    transition_debug = false,
+    transition_debug = true,
 
     -- [General Config] ===================================
     -- True = Facility Power is Off and it's night-time/dark

@@ -28,6 +28,7 @@ local LeyakNpcCache = CreateInvalidObject() -- @ANPC_Leyak_C;
 local LeyakDirectorCache = CreateInvalidObject() -- @ULeyakDirectorComponent_C;
 local AIDirectorCache = CreateInvalidObject() ---@cast AIDirectorCache AAbiotic_AIDirector_C
 local WeatherEventLibCache = CreateInvalidObject() ---@cast WeatherEventLibCache UWeatherEventHandleFunctionLibrary
+local buffHandleFuncLibCache = CreateInvalidObject() ---@cast buffHandleFuncLibCache UBuffDebuffHandleFunctionLibrary
 local sound_has_finished = true
 
 -- ============================================================
@@ -112,6 +113,37 @@ function Utils.split_str(inputstr, sep)
     return tbl
 end
 
+--- Return the object path
+function ObjectPath(obj)
+
+    if not Utils.IsValid(obj) then
+        return nil
+    end
+    local obj_name = ""
+    pcall(
+        function() obj_name = obj:GetFullName()
+    end)
+    if not obj_name then
+        return nil
+    end
+    -- Remove the name of the class and extra preceding space
+    return obj_name:match("^%S+ (.+)$") or obj_name
+end
+
+--- PCall Safe StaticFindObject
+function StaticFindObjectWrapper(path)
+    if not path then
+        return nil
+    end
+    local obj = nil
+    pcall(
+        function() obj = StaticFindObject(path)
+    end)
+    if obj and obj:IsValid() then
+        return obj
+    end
+    return nil
+end
 
 ---Get World.AuthorityGameMode
 ---@return AGameModeBase
@@ -936,6 +968,99 @@ function Utils.doesPlayerHaveBuff(player, buff_name)
     end)
     return has_the_buff
 end
+
+local function apply_buff_helper(actor, linkedActor, apply, label)
+
+    if not Utils.IsValid(actor) then
+        return
+    end
+
+    local comp_path = ObjectPath(actor.BuffDebuffComponent)
+    if not comp_path then
+        Utils.error("[Utils::apply_buff_helper]: Invalid BuffDebuffComponent")
+        return
+    end
+    local linkPath = linkedActor and Utils.ObjectPath(linkedActor) or nil
+
+    ExecuteInGameThread(function()
+        local comp = StaticFindObjectWrapper(comp_path)
+        if comp then
+            local link = linkPath and StaticFindObjectWrapper(linkPath) or nil
+            apply(comp, link)
+        end
+    end)
+end
+
+
+function Utils.ApplyBuff(actor, buff, duration, linkedActor, limb)
+    apply_buff_helper(actor, linkedActor, function(comp, link)
+        if not Utils.IsValid(buffHandleFuncLibCache) then
+            buffHandleFuncLibCache = StaticFindObject("/Script/AbioticFactor.Default__BuffDebuffHandleFunctionLibrary")
+        end
+        if not Utils.IsValid(buffHandleFuncLibCache) then
+            Utils.LogBad("ApplyBuff - BuffDebuffHandleFunctionLibrary not found")
+            return
+        end
+        pcall(function()
+            local handle = buffHandleFuncLibCache:MakeBuffDebuffRowHandle(FName(buff))
+            -- Server_ApplyBuff(handle, , NewDuration, Limb, LinkedActor, bool)
+            local OverrideDefaultDuration = true
+            local skip_dialog = false
+            comp:Server_ApplyBuff(handle, OverrideDefaultDuration, duration or 10, limb or 0, link, skip_dialog)
+        end)
+    end)
+end
+
+
+-- Get Buff-Debuff Row matching by matching name
+function Utils.GetBuffDebuffRow(named)
+
+    if not Utils.IsValid(buffHandleFuncLibCache) then
+        buffHandleFuncLibCache = StaticFindObject("/Script/AbioticFactor.Default__BuffDebuffHandleFunctionLibrary")
+    end
+    if not Utils.IsValid(buffHandleFuncLibCache) then
+        Utils.LogBad("ApplyBuff - BuffDebuffHandleFunctionLibrary not found")
+        return
+    end
+
+    local out_row_handles = {}
+    buffHandleFuncLibCache:GetAllBuffDebuffRowHandles(out_row_handles)
+
+    for i = 1, #out_row_handles, 1 do
+        local param = out_row_handles[i]
+        local row_handle = param:get() ---@type FWeatherEventRowHandle
+        local row_name = row_handle.RowName:ToString()
+        --Utils.log(i..":")
+        --Utils.log(row_name)
+        if row_name == named then
+            return row_handle
+        end
+    end
+
+    return nil
+end
+
+--- Remove the named buff from the player
+---@param player AAbiotic_PlayerCharacter_C
+---@buff_name string
+---@all_stacks boolean
+---@limb number (Limbs Enum)
+---@expired_by_time boolean
+function Utils.RemoveBuff(player, buff_name, all_stacks, limb, expired_by_time)
+    local remove_all_stacks = all_stacks or false
+    local limbs = limb or 0
+    local expired_by_time_flag = expired_by_time or false
+
+    if not Utils.IsValid(buffHandleFuncLibCache) then
+        buffHandleFuncLibCache = StaticFindObject("/Script/AbioticFactor.Default__BuffDebuffHandleFunctionLibrary")
+    end
+
+    local row_handle = Utils.GetBuffDebuffRow(buff_name)
+    if row_handle and Utils.IsValid(row_handle) then
+        player.BuffDebuffComponent:Server_RemoveBuff(row_handle, remove_all_stacks, limbs, expired_by_time_flag)
+    end
+end
+
 
 
 return Utils

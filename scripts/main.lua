@@ -268,55 +268,6 @@ local function Handle_OnRep_LastKnownHour(context)
         temp_power_meter = temp_power_meter - 1
     end
 
-    -- -- If Power Event
-    -- if next_day_has_power then
-
-    --     -- Prepare for Power Restore Next Hour
-
-    --     if dn_manager.LastKnownHour == 4 then
-    --         Utils.log("Next Day has Power: Now=5am")
-    --         Utils.log("[Handle_OnRep_LastKnownHour]next_day_has_power: True")
-    --         dn_manager.MorningStartHour = 6
-    --         temp_power_meter = Config.temp_power_meter_max_hours
-    --         dn_manager.NightfallStartHour = 5
-    --         -- dn_manager.NightfallStartHour = dn_manager.MorningStartHour + temp_power_meter
-    --         -- if dn_manager.NightfallStartHour > 21 then
-    --         --     dn_manager.NightfallStartHour = 21
-    --         -- end
-    --         Utils.log("[Handle_OnRep_LastKnownHour]dn_manager.NightfallStartHour: ")
-    --         Utils.log(dn_manager.NightfallStartHour)
-    --     end
-    --     -- Trigger Morning Now at 6am
-    --     if dn_manager.LastKnownHour == 6 and (Config.facility_power_off_always_night or Config.foggy_weather_enabled) then
-
-    --         -- Msg 1
-    --         Utils.AllClientDisplayWarningMessage("Something rumbles deep below...", Enums.ClientWarnMessageColors.Purple, false)
-
-    --         -- Msg 2
-    --         if Config.facility_power_off_always_night then
-    --             local msg = string.format(".. Facility Power Temporarily Roars Back to Life! (%d hours)", temp_power_meter)
-    --             Utils.AllClientDisplayWarningMessage(msg, Enums.ClientWarnMessageColors.Green, false)
-    --         elseif Config.foggy_weather_enabled then
-    --             local msg = string.format(".. The Facility Power Ventilation System Roars Back to Life! (%d hours)", temp_power_meter)
-    --             Utils.AllClientDisplayWarningMessage(msg, Enums.ClientWarnMessageColors.Green, false)
-    --         end
-
-    --         next_day_has_power = false
-
-    --         -- Attempt to Force Daytime
-    --         local is_daytime = {}
-    --         dn_manager.IsNight = false
-    --         dn_manager:IsCurrentlyDaytime(is_daytime)
-
-    --         -- Vent Weather
-    --         if Config.foggy_weather_enabled then
-    --             ExecuteWithDelay(3000, function()
-    --                 ExecuteInGameThread(function()
-    --                     Utils.TriggerWeatherEvent("None")
-    --                 end)
-    --             end)
-    --         end
-    --     end
 
     -- elseif Config.facility_power_off_always_night and temp_power_meter <= 0 then
     --     -- TODO: Is this needed? Make this statement more clear
@@ -347,54 +298,6 @@ local function Handle_OnRep_LastKnownHour(context)
     --     end
     -- end
 
-    -- Utils.log("temp_power_meter: "..temp_power_meter)
-    -- -- Check Night while here
-    -- if temp_power_meter > 0 then
-    --     temp_power_meter = temp_power_meter - 1
-    --     if Config.facility_power_off_always_night then
-    --         Utils.log("temp_power_meter > 0, Set IsNight = false")
-    --         dn_manager.MorningStartHour = 6
-    --         dn_manager.NightfallStartHour = -1
-    --         dn_manager.IsNight = false
-    --         dn_manager.OnRep_IsNight()
-    --         Utils.log("dn_manager.IsNight")
-    --         Utils.log(dn_manager.IsNight)
-    --     end
-    -- elseif Config.facility_power_off_always_night then
-    --     set_night(dn_manager)
-    -- end
-
-    -- -- Process the Weather Events Next
-    -- if hour_tick % (Config.hours_per_weather_event) == 0 and temp_power_meter <= 0 then
-
-    --     local power_dice_roll = math.random()
-    --     Utils.log(string.format("Temp Emergency Power Roll: %.2f < %.2f", power_dice_roll*100, Config.temp_power_restore_chance))
-    --     if power_dice_roll < (Config.temp_power_restore_chance/100) and Config.facility_power_off_always_night then
-    --         next_day_has_power = true
-    --         dn_manager.MorningStartHour = 6
-    --         dn_manager.NightfallStartHour = -1
-    --     else
-    --         Utils.log("[Handle_OnRep_LastKnownHour]next_day_has_power: False")
-    --     end
-
-    --     if temp_power_meter <= 0 and not next_day_has_power then
-    --         if Config.foggy_weather_enabled then
-    --             Utils.log("Selecting New Weather...")
-    --             ExecuteWithDelay(1000, function()
-    --                 ExecuteInGameThread(function()
-    --                     Utils.TriggerWeatherEvent("None")
-    --                 end)
-    --             end)
-    --             ExecuteWithDelay(4000, function()
-    --                 ExecuteInGameThread(function()
-    --                     local selected = math.random(1, #Config.weather_event_selection)
-    --                     Utils.log(Config.weather_event_selection[selected])
-    --                     Utils.TriggerWeatherEvent(Config.weather_event_selection[selected])
-    --                 end)
-    --             end)
-    --         end
-    --     end
-    -- end
 
     -- Simple Portal Reset Warning
     if Config.warn_on_portal_reset then
@@ -830,6 +733,11 @@ if ToggleKey and ToggleKeyModifiers then
             local stateMessage = "NightShift: Fog:" .. state
             Utils.log(stateMessage)
             Utils.AllClientDisplayWarningMessage(stateMessage, warningColor)
+
+            local player = Utils.GetPlayerFromName("SpDoggy")
+            for _, item in pairs(Config.custom_emergency_starter_kit) do
+                Utils.GiveItemToTarget(player, "SpDoggy", item.item_id, item.table, item.cat, item.qty)
+            end
 
         end)
     end
